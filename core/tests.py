@@ -304,7 +304,7 @@ class IdentidadeVisualTests(TestCase):
         self.assertContains(resp, self.TEMA)
         self.assertContains(resp, 'class="elo-topo')
         self.assertContains(resp, f'href="{reverse("inicio")}" class="elo-topo-link', count=1)
-        self.assertContains(resp, 'aria-current="page"', count=1)
+        self.assertContains(resp, 'aria-current="page"', count=2)  # item ativo do menu + página atual da trilha
 
     def test_admin_continua_com_o_tema_padrao(self):
         get_user_model().objects.create_superuser('chefe', email='chefe@exemplo.com', password='x')
@@ -319,3 +319,54 @@ class IdentidadeVisualTests(TestCase):
         for variavel in ('--color-primary-600', '--color-base-50: #f8fafc', '--color-base-800: #1e293b',
                          '--color-green-700', '--color-orange-700', '--color-blue-700', '--color-red-700', '--elo-dourado'):
             self.assertIn(variavel, css)
+
+
+class TrilhaDeNavegacaoTests(TestCase):
+    """Trilha (breadcrumb) única no layout da área logada, sempre começando em "Início"."""
+
+    def setUp(self):
+        get_user_model().objects.create_user('ana', email='ana@exemplo.com', password='x')
+        self.client.login(username='ana', password='x')
+
+    def trilha(self, url):
+        import re
+
+        html = self.client.get(url).content.decode()
+        nav = re.search(r'<nav aria-label="Trilha de navegação".*?</nav>', html, re.S)
+        self.assertIsNotNone(nav, url)
+        itens = re.findall(r'<(?:a href="([^"]*)"|span[^>]*aria-current="page")[^>]*>([^<]+)<', nav.group(0))
+        return [(rotulo.strip(), link or None) for link, rotulo in itens]
+
+    def test_inicio(self):
+        self.assertEqual(self.trilha(reverse('inicio')), [('Início', None)])
+
+    def test_alterar_senha(self):
+        self.assertEqual(self.trilha(reverse('password_change')), [('Início', '/'), ('Alterar senha', None)])
+        self.assertEqual(self.trilha(reverse('password_change_done')), [
+            ('Início', '/'), ('Alterar senha', reverse('password_change')), ('Senha alterada', None),
+        ])
+
+    def test_paginas_dos_sistemas_e_do_processo(self):
+        from judicial.models import SistemaJudicial
+
+        eproc = SistemaJudicial.objects.get(nome='EPROC TJTO')
+        amb = eproc.ambientes.order_by('ordem').first()
+        sistemas = ('Sistemas', reverse('sistemas:lista'))
+        sistema = ('EPROC TJTO', reverse('sistemas:ambientes', args=[eproc.pk]))
+        ambiente = (amb.descricao, reverse('sistemas:servicos', args=[eproc.pk, amb.pk]))
+        inicio = ('Início', '/')
+        casos = {
+            reverse('sistemas:lista'): [inicio, ('Sistemas', None)],
+            reverse('sistemas:ambientes', args=[eproc.pk]): [inicio, sistemas, ('EPROC TJTO', None)],
+            reverse('sistemas:credencial', args=[eproc.pk]): [inicio, sistemas, sistema, ('Cadastrar usuário', None)],
+            reverse('sistemas:servicos', args=[eproc.pk, amb.pk]): [inicio, sistemas, sistema, (amb.descricao, None)],
+            reverse('sistemas:processo', args=[eproc.pk, amb.pk, '00012341420248272729']):
+                [inicio, sistemas, sistema, ambiente, ('Processo 0001234-14.2024.8.27.2729', None)],
+        }
+        for url, esperado in casos.items():
+            with self.subTest(url=url):
+                self.assertEqual(self.trilha(url), esperado)
+
+    def test_paginas_publicas_nao_tem_trilha(self):
+        self.client.logout()
+        self.assertNotContains(self.client.get(reverse('login')), 'Trilha de navegação')

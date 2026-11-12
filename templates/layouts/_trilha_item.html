@@ -1,0 +1,12 @@
+{% comment %}
+Item da trilha de navegação (breadcrumb). Parâmetros: rotulo; url (vazio = página atual).
+Uso, dentro de {% block trilha %}: {% include "layouts/_trilha_item.html" with rotulo="Sistemas" url=url_sistemas %}
+{% endcomment %}
+<li class="flex gap-1 items-center min-w-0">
+    <span class="material-symbols-outlined shrink-0 text-sm" aria-hidden="true">chevron_right</span>
+    {% if url %}
+        <a href="{{ url }}" class="elo-trilha-rotulo hover:text-primary-600 dark:hover:text-primary-500" title="{{ rotulo }}">{{ rotulo }}</a>
+    {% else %}
+        <span class="elo-trilha-rotulo font-medium text-important" aria-current="page" title="{{ rotulo }}">{{ rotulo }}</span>
+    {% endif %}
+</li>

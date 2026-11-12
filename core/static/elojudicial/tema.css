@@ -166,3 +166,16 @@ html.dark:root {
 .elo-topo input[type="search"] {
     border-color: transparent;
 }
+
+/* ---------- Trilha de navegação (breadcrumb) ---------- */
+.elo-trilha-rotulo {
+    max-width: 32ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.elo-trilha a:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}

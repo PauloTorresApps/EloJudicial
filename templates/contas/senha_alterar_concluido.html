@@ -1,6 +1,10 @@
 {% extends "layouts/app.html" %}
 {% load unfold %}
 {% block titulo %}Senha alterada{% endblock %}
+{% block trilha %}
+    {% url 'password_change' as url_senha %}{% include "layouts/_trilha_item.html" with rotulo="Alterar senha" url=url_senha %}
+    {% include "layouts/_trilha_item.html" with rotulo="Senha alterada" %}
+{% endblock %}
 {% block content %}
     <div class="max-w-xl">
         {% component "unfold/components/card.html" with title="Senha alterada" title_icon="check" %}

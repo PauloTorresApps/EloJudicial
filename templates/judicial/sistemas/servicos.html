@@ -1,9 +1,13 @@
 {% extends "layouts/app.html" %}
 {% load unfold %}
 {% block titulo %}{{ sistema.nome }} · {{ ambiente.descricao }}{% endblock %}
+{% block trilha %}
+    {% url 'sistemas:lista' as url_sistemas %}{% include "layouts/_trilha_item.html" with rotulo="Sistemas" url=url_sistemas %}
+    {% url 'sistemas:ambientes' sistema.pk as url_sistema %}{% include "layouts/_trilha_item.html" with rotulo=sistema.nome url=url_sistema %}
+    {% include "layouts/_trilha_item.html" with rotulo=ambiente.descricao %}
+{% endblock %}
 {% block content %}
-    {% include "judicial/sistemas/_trilha.html" %}
-
+    
     <div class="flex flex-col gap-4 mb-6 md:flex-row md:items-center justify-between">
         <div>
             <h1 class="flex flex-wrap font-semibold gap-2 items-center text-2xl text-important tracking-tight">

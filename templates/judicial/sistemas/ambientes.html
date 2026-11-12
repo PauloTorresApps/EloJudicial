@@ -1,10 +1,13 @@
 {% extends "layouts/app.html" %}
 {% load unfold %}
 {% block titulo %}{{ sistema.nome }}{% endblock %}
+{% block trilha %}
+    {% url 'sistemas:lista' as url_sistemas %}{% include "layouts/_trilha_item.html" with rotulo="Sistemas" url=url_sistemas %}
+    {% include "layouts/_trilha_item.html" with rotulo=sistema.nome %}
+{% endblock %}
 {% block content %}
     <div x-data="{ aberto: {{ senha_ok|yesno:'false,true' }} }">
-    {% include "judicial/sistemas/_trilha.html" %}
-
+    
     <div class="mb-6">
         <h1 class="font-semibold text-2xl text-important tracking-tight">{{ sistema.nome }}</h1>
         <p class="mt-1 text-subtle">Escolha o ambiente de trabalho.{% if sistema.descricao %} {{ sistema.descricao }}.{% endif %}</p>

@@ -1,6 +1,9 @@
 {% extends "layouts/app.html" %}
 {% load unfold %}
 {% block titulo %}Alterar senha{% endblock %}
+{% block trilha %}
+    {% include "layouts/_trilha_item.html" with rotulo="Alterar senha" %}
+{% endblock %}
 {% block content %}
     <div class="max-w-xl">
         {% component "unfold/components/card.html" with title="Alterar senha" title_icon="key" description="Informe sua senha atual e escolha uma nova." %}

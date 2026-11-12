@@ -5,17 +5,13 @@
     {{ block.super }}
     <script src="{% static 'judicial/eventos.js' %}"></script>
 {% endblock %}
+{% block trilha %}
+    {% url 'sistemas:lista' as url_sistemas %}{% include "layouts/_trilha_item.html" with rotulo="Sistemas" url=url_sistemas %}
+    {% url 'sistemas:ambientes' sistema.pk as url_sistema %}{% include "layouts/_trilha_item.html" with rotulo=sistema.nome url=url_sistema %}
+    {% url 'sistemas:servicos' sistema.pk ambiente.pk as url_ambiente %}{% include "layouts/_trilha_item.html" with rotulo=ambiente.descricao url=url_ambiente %}
+    {% include "layouts/_trilha_item.html" with rotulo="Processo "|add:numero_formatado %}
+{% endblock %}
 {% block content %}
-    <nav class="flex flex-row flex-wrap gap-2 items-center mb-4 text-subtle">
-        <a href="{% url 'sistemas:lista' %}" class="hover:text-primary-600 dark:hover:text-primary-500">Sistemas</a>
-        <span class="material-symbols-outlined text-sm">chevron_right</span>
-        <a href="{% url 'sistemas:ambientes' sistema.pk %}" class="hover:text-primary-600 dark:hover:text-primary-500">{{ sistema.nome }}</a>
-        <span class="material-symbols-outlined text-sm">chevron_right</span>
-        <a href="{% url 'sistemas:servicos' sistema.pk ambiente.pk %}" class="hover:text-primary-600 dark:hover:text-primary-500">{{ ambiente.descricao }}</a>
-        <span class="material-symbols-outlined text-sm">chevron_right</span>
-        <span class="font-medium text-important">Processo</span>
-    </nav>
-
     <div class="flex flex-col gap-4 mb-6 md:flex-row md:items-center justify-between">
         <div>
             <h1 class="font-semibold text-2xl text-important tracking-tight">Consulta processual · Detalhes do processo</h1>

@@ -1,6 +1,9 @@
 {% extends "layouts/app.html" %}
 {% load unfold %}
 {% block titulo %}Sistemas judiciais{% endblock %}
+{% block trilha %}
+    {% include "layouts/_trilha_item.html" with rotulo="Sistemas" %}
+{% endblock %}
 {% block content %}
     <div class="mb-6">
         <h1 class="font-semibold text-2xl text-important tracking-tight">Sistemas judiciais</h1>

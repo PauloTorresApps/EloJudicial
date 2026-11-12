@@ -106,6 +106,21 @@
         </div>
 
         <main class="container grow mx-auto px-4 py-8">
+            {% capture as itens_trilha silent %}{% block trilha %}{% endblock %}{% endcapture %}
+            <nav aria-label="Trilha de navegação" class="elo-trilha mb-4 text-subtle">
+                <ol class="flex flex-wrap gap-1 items-center">
+                    <li class="flex gap-1 items-center shrink-0">
+                        <span class="material-symbols-outlined text-base" aria-hidden="true">home</span>
+                        {% if itens_trilha.strip %}
+                            <a href="{% url 'inicio' %}" class="hover:text-primary-600 dark:hover:text-primary-500">Início</a>
+                        {% else %}
+                            <span class="font-medium text-important" aria-current="page">Início</span>
+                        {% endif %}
+                    </li>
+                    {{ itens_trilha }}
+                </ol>
+            </nav>
+
             {% include "unfold/helpers/messages.html" %}
 
             {% block content %}{% endblock %}
