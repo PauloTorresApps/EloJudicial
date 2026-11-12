@@ -1,7 +1,10 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 
-from .models import Ambiente, Credencial, Preferencia, SistemaJudicial
+from .models import Ambiente, SistemaJudicial
+
+# Credencial e Preferencia NÃO são registradas aqui de propósito: pertencem somente ao
+# seu dono e nem a administração pode vê-las ou alterá-las (só a contagem, abaixo).
 
 
 class AmbienteInline(TabularInline):
@@ -25,7 +28,7 @@ class SistemaJudicialAdmin(ModelAdmin):
     def total_ambientes(self, obj):
         return obj.ambientes.count()
 
-    @admin.display(description='credenciais')
+    @admin.display(description='usuários cadastrados')
     def total_credenciais(self, obj):
         return obj.credenciais.count()
 
@@ -38,22 +41,3 @@ class AmbienteAdmin(ModelAdmin):
     list_select_related = ['sistema']
     autocomplete_fields = ['sistema']
     readonly_fields = ['criado_em', 'atualizado_em']
-
-
-@admin.register(Credencial)
-class CredencialAdmin(ModelAdmin):
-    list_display = ['usuario', 'sistema', 'login', 'atualizado_em']
-    list_filter = ['sistema']
-    search_fields = ['login', 'usuario__username', 'usuario__email', 'sistema__nome']
-    autocomplete_fields = ['usuario', 'sistema']
-    list_select_related = ['usuario', 'sistema']
-    readonly_fields = ['criado_em', 'atualizado_em']
-
-
-@admin.register(Preferencia)
-class PreferenciaAdmin(ModelAdmin):
-    list_display = ['usuario', 'ambiente_padrao', 'atualizado_em']
-    list_filter = ['ambiente_padrao__sistema']
-    search_fields = ['usuario__username', 'usuario__email']
-    autocomplete_fields = ['usuario']
-    list_select_related = ['usuario', 'ambiente_padrao__sistema']

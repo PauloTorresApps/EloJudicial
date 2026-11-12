@@ -1,10 +1,6 @@
 {% extends "layouts/app.html" %}
 {% load unfold %}
-{% block titulo %}{{ sistema.nome }}    {% if not senha_ok %}
-        {% include "judicial/sistemas/_modal_senha.html" with login_inicial=credencial.login voltar_para=request.path %}
-    {% endif %}
-    </div>
-{% endblock %}
+{% block titulo %}{{ sistema.nome }}{% endblock %}
 {% block content %}
     <div x-data="{ aberto: {{ senha_ok|yesno:'false,true' }} }">
     {% include "judicial/sistemas/_trilha.html" %}
@@ -12,6 +8,31 @@
     <div class="mb-6">
         <h1 class="font-semibold text-2xl text-important tracking-tight">{{ sistema.nome }}</h1>
         <p class="mt-1 text-subtle">Escolha o ambiente de trabalho.{% if sistema.descricao %} {{ sistema.descricao }}.{% endif %}</p>
+    </div>
+
+    {% url 'sistemas:credencial' sistema.pk as url_credencial %}
+    <div class="bg-white border border-base-200 flex flex-col gap-3 mb-6 px-4 py-3 rounded-default shadow-xs sm:flex-row sm:items-center dark:bg-base-900 dark:border-base-800">
+        <span class="material-symbols-outlined text-subtle">badge</span>
+        <div class="grow">
+            {% if credencial %}
+                <div class="text-subtle text-xs">Seu usuário no {{ sistema.nome }}</div>
+                <div class="font-medium text-important">{{ credencial.login }}</div>
+            {% else %}
+                <div class="font-medium text-important">Nenhum usuário cadastrado</div>
+                <div class="text-subtle text-xs">Cadastre o usuário (CPF ou matrícula) que você usa no {{ sistema.nome }}.</div>
+            {% endif %}
+        </div>
+        <div class="flex gap-2">
+            {% if credencial %}
+                {% component "unfold/components/button.html" with href=url_credencial variant="default" icon="edit" %}Alterar{% endcomponent %}
+                {% url 'sistemas:excluir_credencial' sistema.pk as url_excluir %}
+                <a href="{{ url_excluir }}" title="Remover usuário" class="flex items-center px-2 py-1 rounded-default text-red-700 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/20">
+                    <span class="material-symbols-outlined">delete</span>
+                </a>
+            {% else %}
+                {% component "unfold/components/button.html" with href=url_credencial variant="primary" icon="add" %}Cadastrar usuário{% endcomponent %}
+            {% endif %}
+        </div>
     </div>
 
     {% if not senha_ok %}

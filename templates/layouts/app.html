@@ -32,9 +32,6 @@
                     <a href="{% url 'sistemas:lista' %}" class="flex font-medium gap-2 items-center px-3 py-2 rounded-default hover:bg-base-100 dark:hover:bg-base-800 {% if request.resolver_match.namespace == 'sistemas' %}text-primary-600 dark:text-primary-500{% endif %}">
                         Sistemas
                     </a>
-                    <a href="{% url 'judicial:lista' %}" class="flex font-medium gap-2 items-center px-3 py-2 rounded-default hover:bg-base-100 dark:hover:bg-base-800 {% if request.resolver_match.namespace == 'judicial' %}text-primary-600 dark:text-primary-500{% endif %}">
-                        Credenciais
-                    </a>
                 </nav>
                 {% endwith %}
 
@@ -76,9 +73,6 @@
                                 </a>
                                 <a href="{% url 'sistemas:lista' %}" class="flex items-center mx-1 px-3 py-2 rounded-default hover:bg-base-100 hover:text-base-700 dark:hover:bg-base-700 dark:hover:text-base-200">
                                     Sistemas <span class="material-symbols-outlined ml-auto">account_balance</span>
-                                </a>
-                                <a href="{% url 'judicial:lista' %}" class="flex items-center mx-1 px-3 py-2 rounded-default hover:bg-base-100 hover:text-base-700 dark:hover:bg-base-700 dark:hover:text-base-200">
-                                    Credenciais <span class="material-symbols-outlined ml-auto">badge</span>
                                 </a>
                             </div>
 

@@ -1,0 +1,20 @@
+{% extends "layouts/app.html" %}
+{% load unfold %}
+{% block titulo %}Usuário · {{ sistema.nome }}{% endblock %}
+{% block content %}
+    {% include "judicial/sistemas/_trilha.html" %}
+    <div class="max-w-xl">
+        {% if credencial %}{% firstof "Alterar usuário" as titulo %}{% else %}{% firstof "Cadastrar usuário" as titulo %}{% endif %}
+        {% component "unfold/components/card.html" with title=titulo title_icon="badge" description="Informe o usuário que você usa para acessar o "|add:sistema.nome|add:". A senha não é guardada: ela é pedida quando você acessa o sistema." %}
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {% include "contas/_form.html" %}
+                {% url 'sistemas:ambientes' sistema.pk as url_voltar %}
+                <div class="flex gap-3 justify-end mt-6">
+                    {% component "unfold/components/button.html" with href=url_voltar variant="default" %}Cancelar{% endcomponent %}
+                    {% component "unfold/components/button.html" with submit=1 variant="primary" %}Salvar{% endcomponent %}
+                </div>
+            </form>
+        {% endcomponent %}
+    </div>
+{% endblock %}

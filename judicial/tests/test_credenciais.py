@@ -28,83 +28,100 @@ class SistemasIniciaisTests(TestCase):
 
 
 class CredencialTests(Base):
-    def test_lista_exige_login(self):
+    """O usuário de cada sistema é gerenciado na página do próprio sistema."""
+
+    def url(self, sistema=None):
+        return reverse('sistemas:credencial', args=[(sistema or self.eproc).pk])
+
+    def url_excluir(self, sistema=None):
+        return reverse('sistemas:excluir_credencial', args=[(sistema or self.eproc).pk])
+
+    def url_sistema(self, sistema=None):
+        return reverse('sistemas:ambientes', args=[(sistema or self.eproc).pk])
+
+    def test_exige_login(self):
         self.client.logout()
-        resp = self.client.get(reverse('judicial:lista'))
-        self.assertRedirects(resp, f"{reverse('login')}?next={reverse('judicial:lista')}")
+        resp = self.client.get(self.url())
+        self.assertRedirects(resp, f"{reverse('login')}?next={self.url()}")
 
-    def test_lista_vazia(self):
-        resp = self.client.get(reverse('judicial:lista'))
-        self.assertContains(resp, 'Nenhuma credencial cadastrada')
+    def test_pagina_do_sistema_mostra_cadastro_quando_nao_ha_usuario(self):
+        resp = self.client.get(self.url_sistema())
+        self.assertContains(resp, 'Nenhum usuário cadastrado')
+        self.assertContains(resp, self.url())
 
-    def test_criar_credencial(self):
-        resp = self.client.post(
-            reverse('judicial:criar'), {'sistema': self.eproc.pk, 'login': '  12345678900 '}, follow=True
-        )
-        self.assertRedirects(resp, reverse('judicial:lista'))
+    def test_pagina_do_sistema_mostra_o_usuario(self):
+        Credencial.objects.create(usuario=self.ana, sistema=self.eproc, login='12345678900')
+        resp = self.client.get(self.url_sistema())
+        self.assertContains(resp, '12345678900')
+        self.assertContains(resp, self.url_excluir())
+
+    def test_cadastrar(self):
+        resp = self.client.post(self.url(), {'login': '  12345678900 '}, follow=True)
+        self.assertRedirects(resp, self.url_sistema())
         c = Credencial.objects.get()
         self.assertEqual((c.usuario, c.sistema, c.login), (self.ana, self.eproc, '12345678900'))
-        self.assertContains(resp, '12345678900')
-        self.assertContains(resp, 'Credencial cadastrada.')
+        self.assertContains(resp, 'Usuário cadastrado.')
 
-    def test_campos_obrigatorios(self):
-        resp = self.client.post(reverse('judicial:criar'), {})
+    def test_login_obrigatorio(self):
+        resp = self.client.post(self.url(), {'login': '  '})
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(Credencial.objects.count(), 0)
 
-    def test_nao_permite_duas_credenciais_no_mesmo_sistema(self):
-        Credencial.objects.create(usuario=self.ana, sistema=self.eproc, login='a')
-        resp = self.client.post(reverse('judicial:criar'), {'sistema': self.eproc.pk, 'login': 'b'})
-        self.assertContains(resp, 'Você já tem uma credencial cadastrada para este sistema.')
-        self.assertEqual(Credencial.objects.count(), 1)
+    def test_um_usuario_por_sistema(self):
+        Credencial.objects.create(usuario=self.ana, sistema=self.eproc, login='antigo')
+        self.client.post(self.url(), {'login': 'novo'})
+        self.assertEqual(list(Credencial.objects.values_list('login', flat=True)), ['novo'])
+
+    def test_alterar_mantem_os_outros_sistemas(self):
+        Credencial.objects.create(usuario=self.ana, sistema=self.pje, login='pje')
+        Credencial.objects.create(usuario=self.ana, sistema=self.eproc, login='antigo')
+        resp = self.client.post(self.url(), {'login': 'novo'}, follow=True)
+        self.assertContains(resp, 'Usuário atualizado.')
+        self.assertEqual(Credencial.objects.get(sistema=self.pje).login, 'pje')
 
     def test_usuarios_diferentes_podem_usar_o_mesmo_sistema(self):
         Credencial.objects.create(usuario=self.beto, sistema=self.eproc, login='beto')
-        resp = self.client.post(reverse('judicial:criar'), {'sistema': self.eproc.pk, 'login': 'ana'})
-        self.assertRedirects(resp, reverse('judicial:lista'))
+        self.client.post(self.url(), {'login': 'ana'})
+        self.assertEqual(Credencial.objects.get(usuario=self.beto).login, 'beto')
+        self.assertEqual(Credencial.objects.get(usuario=self.ana).login, 'ana')
 
-    def test_sistema_inativo_nao_aparece_para_cadastro(self):
+    def test_sistema_inativo_nao_aceita_cadastro(self):
         self.pje.ativo = False
         self.pje.save()
-        resp = self.client.post(reverse('judicial:criar'), {'sistema': self.pje.pk, 'login': 'x'})
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(Credencial.objects.count(), 0)
-        self.assertNotContains(self.client.get(reverse('judicial:criar')), '>PJe<')
-
-    def test_credencial_nao_tem_campo_de_senha(self):
-        campos = {f.name for f in Credencial._meta.get_fields()}
-        self.assertFalse(any('senha' in c for c in campos))
-        self.assertNotContains(self.client.get(reverse('judicial:criar')), 'type="password"')
-
-    def test_editar_credencial(self):
-        c = Credencial.objects.create(usuario=self.ana, sistema=self.eproc, login='antigo')
-        resp = self.client.post(reverse('judicial:editar', args=[c.pk]), {'sistema': self.eproc.pk, 'login': 'novo'})
-        self.assertRedirects(resp, reverse('judicial:lista'))
-        c.refresh_from_db()
-        self.assertEqual(c.login, 'novo')
-
-    def test_editar_mantem_sistema_que_foi_desativado(self):
-        c = Credencial.objects.create(usuario=self.ana, sistema=self.pje, login='antigo')
-        self.pje.ativo = False
-        self.pje.save()
-        resp = self.client.post(reverse('judicial:editar', args=[c.pk]), {'sistema': self.pje.pk, 'login': 'novo'})
-        self.assertRedirects(resp, reverse('judicial:lista'))
-
-    def test_excluir_credencial(self):
-        c = Credencial.objects.create(usuario=self.ana, sistema=self.eproc, login='a')
-        self.assertContains(self.client.get(reverse('judicial:excluir', args=[c.pk])), 'Tem certeza')
-        resp = self.client.post(reverse('judicial:excluir', args=[c.pk]))
-        self.assertRedirects(resp, reverse('judicial:lista'))
+        self.assertEqual(self.client.post(self.url(self.pje), {'login': 'x'}).status_code, 404)
         self.assertFalse(Credencial.objects.exists())
 
-    def test_nao_acessa_credencial_de_outro_usuario(self):
-        c = Credencial.objects.create(usuario=self.beto, sistema=self.eproc, login='beto')
-        self.assertNotContains(self.client.get(reverse('judicial:lista')), 'beto')
-        for nome in ('judicial:editar', 'judicial:excluir'):
-            self.assertEqual(self.client.get(reverse(nome, args=[c.pk])).status_code, 404)
-            self.assertEqual(self.client.post(reverse(nome, args=[c.pk]), {'sistema': self.eproc.pk, 'login': 'hack'}).status_code, 404)
-        c.refresh_from_db()
-        self.assertEqual(c.login, 'beto')
+    def test_formulario_nao_tem_campo_de_senha(self):
+        campos = {f.name for f in Credencial._meta.get_fields()}
+        self.assertFalse(any('senha' in c for c in campos))
+        self.assertNotContains(self.client.get(self.url()), 'type="password"')
+
+    def test_excluir(self):
+        Credencial.objects.create(usuario=self.ana, sistema=self.eproc, login='a')
+        self.assertContains(self.client.get(self.url_excluir()), 'Tem certeza')
+        resp = self.client.post(self.url_excluir())
+        self.assertRedirects(resp, self.url_sistema())
+        self.assertFalse(Credencial.objects.exists())
+
+    def test_excluir_sem_usuario_cadastrado(self):
+        self.assertEqual(self.client.get(self.url_excluir()).status_code, 404)
+
+    def test_nao_altera_nem_exclui_o_usuario_de_outra_pessoa(self):
+        Credencial.objects.create(usuario=self.beto, sistema=self.eproc, login='beto')
+        self.assertNotContains(self.client.get(self.url_sistema()), 'beto')
+        self.assertEqual(self.client.post(self.url_excluir()).status_code, 404)
+        self.client.post(self.url(), {'login': 'ana'})
+        self.assertEqual(Credencial.objects.get(usuario=self.beto).login, 'beto')
+
+    def test_lista_de_sistemas_mostra_o_usuario(self):
+        Credencial.objects.create(usuario=self.ana, sistema=self.eproc, login='12345678900')
+        resp = self.client.get(reverse('sistemas:lista'))
+        self.assertContains(resp, '12345678900')
+        self.assertContains(resp, 'Usuário não cadastrado')  # demais sistemas
+
+    def test_area_separada_de_credenciais_nao_existe_mais(self):
+        self.assertEqual(self.client.get('/credenciais/').status_code, 404)
+        self.assertNotContains(self.client.get(reverse('inicio')), 'Credenciais judiciais')
 
     def test_sistema_com_credenciais_nao_pode_ser_apagado(self):
         from django.db.models import ProtectedError
@@ -123,26 +140,6 @@ class AdminJudicialTests(TestCase):
     def test_paginas_do_admin(self):
         chefe = get_user_model().objects.create_superuser('chefe', email='chefe@exemplo.com', password='x')
         self.client.force_login(chefe)
-        for url in ('judicial_sistemajudicial', 'judicial_credencial'):
+        for url in ('judicial_sistemajudicial', 'judicial_ambiente'):
             self.assertEqual(self.client.get(reverse(f'admin:{url}_changelist')).status_code, 200)
             self.assertEqual(self.client.get(reverse(f'admin:{url}_add')).status_code, 200)
-
-
-class RetornoCredencialTests(Base):
-    def test_cadastro_volta_para_a_pagina_de_origem(self):
-        origem = reverse('sistemas:ambientes', args=[self.eproc.pk])
-        resp = self.client.post(
-            reverse('judicial:criar') + f'?next={origem}',
-            {'sistema': self.eproc.pk, 'login': 'x', 'next': origem},
-        )
-        self.assertRedirects(resp, origem)
-
-    def test_next_externo_e_ignorado(self):
-        resp = self.client.post(
-            reverse('judicial:criar'), {'sistema': self.eproc.pk, 'login': 'x', 'next': 'https://mal.com/'}
-        )
-        self.assertRedirects(resp, reverse('judicial:lista'))
-
-    def test_sistema_pre_selecionado(self):
-        resp = self.client.get(reverse('judicial:criar') + f'?sistema={self.eproc.pk}')
-        self.assertContains(resp, f'<option value="{self.eproc.pk}" selected>')

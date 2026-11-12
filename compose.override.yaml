@@ -5,7 +5,7 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     environment:
       DJANGO_DEBUG: "True"
-      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0"
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0}
       EMAIL_HOST: mailpit
       EMAIL_PORT: "1025"
       EMAIL_HOST_USER: ""
@@ -17,11 +17,20 @@ services:
     depends_on:
       - mailpit
 
-  # Captura todos os e-mails enviados em dev. Interface web: http://localhost:8025
+  # Captura todos os e-mails enviados em dev. Interface web (via nginx): http://localhost:8025
   mailpit:
     image: axllent/mailpit:v1.33
     restart: unless-stopped
     environment:
       MP_MAX_MESSAGES: 500
+
+  nginx:
+    environment:
+      # Em dev, o banco e o Redis aceitam conexões vindas da máquina local e de redes privadas.
+      NGINX_SERVICOS_PERMITIDOS: ${NGINX_SERVICOS_PERMITIDOS:-127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
     ports:
       - "${MAILPIT_UI_PORT:-8025}:8025"
+    volumes:
+      - ./docker/nginx/dev/mailpit.conf:/etc/nginx/conf.d/mailpit.conf:ro
+    depends_on:
+      - mailpit

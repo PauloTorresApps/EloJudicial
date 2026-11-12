@@ -96,7 +96,8 @@ class Credencial(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.sistema} — {self.login}'
+        # Sem o login: o texto aparece em telas da administração (ex.: ao excluir um usuário).
+        return f'Credencial do {self.sistema}'
 
 
 class Preferencia(models.Model):

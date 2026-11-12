@@ -7,7 +7,7 @@ from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 from django.views.decorators.http import require_http_methods
 
-from judicial.preferencias import ambiente_padrao
+from judicial.views_sistemas import contexto_sistemas
 
 from .emails import enviar_confirmacao_email
 from .forms import CadastroForm, ReenviarConfirmacaoForm
@@ -16,7 +16,8 @@ from .tokens import ativacao_token
 
 def inicio(request):
     # Acesso restrito a usuários logados via LoginRequiredMiddleware.
-    return render(request, 'core/inicio.html', {'padrao': ambiente_padrao(request.user)})
+    # Somente os sistemas em que o próprio usuário já cadastrou o seu login.
+    return render(request, 'core/inicio.html', contexto_sistemas(request, somente_com_credencial=True))
 
 
 @login_not_required

@@ -1,0 +1,45 @@
+{% load unfold %}
+{% comment %}
+Card de um sistema judicial (lista de sistemas e página inicial).
+Contexto: sistema (com total_ambientes e login_usuario), padrao, desbloqueados.
+Sistema sem senha liberada: o clique abre o modal de senha.
+{% endcomment %}
+{% capture as corpo silent %}
+    <div class="flex flex-col gap-3">
+        <div class="flex gap-2 items-center">
+            <span class="material-symbols-outlined text-subtle">dns</span>
+            {% if sistema.total_ambientes %}
+                {{ sistema.total_ambientes }} ambiente{{ sistema.total_ambientes|pluralize }} de trabalho
+            {% else %}
+                <span class="text-subtle">Nenhum ambiente configurado</span>
+            {% endif %}
+        </div>
+        <div class="flex gap-2 items-center">
+            <span class="material-symbols-outlined text-subtle">badge</span>
+            {% if sistema.login_usuario %}{{ sistema.login_usuario }}{% else %}<span class="text-subtle">Usuário não cadastrado</span>{% endif %}
+        </div>
+        <div class="flex flex-wrap gap-2">
+            {% if padrao and padrao.sistema_id == sistema.pk %}
+                {% include "unfold/helpers/label.html" with text="★ padrão: "|add:padrao.descricao type="primary" href="" %}
+            {% endif %}
+            {% if sistema.pk in desbloqueados %}
+                {% include "unfold/helpers/label.html" with text="acesso liberado" type="success" href="" %}
+            {% elif sistema.total_ambientes %}
+                {% include "unfold/helpers/label.html" with text="senha será solicitada" href="" %}
+            {% endif %}
+        </div>
+    </div>
+{% endcapture %}
+
+{% if not sistema.total_ambientes or sistema.pk in desbloqueados %}
+    {% url 'sistemas:ambientes' sistema.pk as url_sistema %}
+    {% component "unfold/components/card.html" with href=url_sistema title=sistema.nome title_icon="account_balance" description=sistema.descricao %}{{ corpo }}{% endcomponent %}
+{% else %}
+    {% url 'sistemas:ambientes' sistema.pk as url_sistema %}
+    <div x-data="{ aberto: false }" class="flex">
+        <a href="{{ url_sistema }}" class="flex grow" x-on:click.prevent="aberto = true">
+            {% component "unfold/components/card.html" with title=sistema.nome title_icon="account_balance" description=sistema.descricao class="cursor-pointer transition-all hover:border-base-300 hover:shadow-md dark:hover:border-base-700" %}{{ corpo }}{% endcomponent %}
+        </a>
+        {% include "judicial/sistemas/_modal_senha.html" with login_inicial=sistema.login_usuario voltar_para=url_sistema %}
+    </div>
+{% endif %}

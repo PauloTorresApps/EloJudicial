@@ -207,8 +207,8 @@ class BuscaNaBarraTests(Base):
 
     def test_numero_invalido_volta_com_mensagem(self):
         definir_ambiente_padrao(self.user, self.amb1)
-        resp = self.buscar('0001234-15.2024.8.27.2729', HTTP_REFERER='http://testserver' + reverse('judicial:lista'), follow=True)
-        self.assertRedirects(resp, reverse('judicial:lista'))
+        resp = self.buscar('0001234-15.2024.8.27.2729', HTTP_REFERER='http://testserver' + reverse('sistemas:lista'), follow=True)
+        self.assertRedirects(resp, reverse('sistemas:lista'))
         self.assertContains(resp, 'dígito verificador não confere')
         self.assertContains(resp, 'value="0001234-15.2024.8.27.2729"')  # mantém o que foi digitado
         self.assertNotContains(self.client.get(reverse('inicio')), 'value="0001234-15')  # só uma vez

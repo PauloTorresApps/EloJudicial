@@ -108,6 +108,27 @@ class CicloDeVidaTests(Base):
         self.assertNotContains(self.client.get(reverse('sistemas:lista')), 'acesso liberado')
 
 
+class CredencialESenhaTests(Base):
+    def url_credencial(self):
+        return reverse('sistemas:credencial', args=[self.eproc.pk])
+
+    def test_trocar_o_usuario_descarta_a_senha_liberada(self):
+        self.informar()
+        self.client.post(self.url_credencial(), {'login': 'outro'})
+        self.assertIsNone(self.hash_em_cache())
+
+    def test_salvar_o_mesmo_usuario_mantem_a_senha(self):
+        self.informar(login='12345678900')
+        self.client.post(self.url_credencial(), {'login': '12345678900'})
+        self.assertIsNotNone(self.hash_em_cache())
+
+    def test_remover_o_usuario_descarta_a_senha(self):
+        self.informar()
+        self.client.post(reverse('sistemas:excluir_credencial', args=[self.eproc.pk]))
+        self.assertIsNone(self.hash_em_cache())
+        self.assertFalse(Credencial.objects.exists())
+
+
 class TelasTests(Base):
     def test_lista_abre_modal_antes_e_libera_depois(self):
         resp = self.client.get(reverse('sistemas:lista'))

@@ -75,7 +75,8 @@ class DefinirPadraoTests(Base):
         definir_ambiente_padrao(self.user, self.amb1)
         self.assertContains(self.client.get(reverse('sistemas:lista')), '★ padrão: 1º Grau')
         self.assertContains(self.client.get(reverse('sistemas:ambientes', args=[self.eproc.pk])), '★ padrão')
-        self.assertContains(self.client.get(reverse('inicio')), 'Ir para o ambiente padrão')
+        self.user.credenciais_judiciais.create(sistema=self.eproc, login='x')  # o início só mostra sistemas com usuário
+        self.assertContains(self.client.get(reverse('inicio')), '★ padrão: 1º Grau')
         self.assertContains(self.client.get(self.url_servicos(self.amb1)), 'Padrão · remover')
         self.assertContains(self.client.get(self.url_servicos(self.amb2)), 'Definir como padrão')
 
@@ -104,7 +105,7 @@ class LoginRedirecionaTests(Base):
 
     def test_next_especifico_tem_prioridade(self):
         definir_ambiente_padrao(self.user, self.amb1)
-        destino = reverse('judicial:lista')
+        destino = reverse('sistemas:lista')
         resp = self.login(next=destino, query=f'?next={destino}')
         self.assertRedirects(resp, destino)
 

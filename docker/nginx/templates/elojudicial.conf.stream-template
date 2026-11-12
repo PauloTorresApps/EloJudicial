@@ -1,0 +1,50 @@
+upstream elojudicial_db {
+    zone elojudicial_db 64k;
+    server db:5432 resolve;
+}
+
+upstream elojudicial_redis {
+    zone elojudicial_redis 64k;
+    server redis:6379 resolve;
+}
+
+# Destino de cada conexão na 443, pelo nome pedido no TLS (SNI).
+map $ssl_preread_server_name $elojudicial_destino {
+    ${NGINX_DB_HOST}     unix:/run/nginx/postgres.sock;
+    ${NGINX_REDIS_HOST}  unix:/run/nginx/redis.sock;
+    default              unix:/run/nginx/https.sock;
+}
+
+server {
+    listen 443;
+    ssl_preread on;
+    proxy_pass $elojudicial_destino;
+    proxy_protocol on;
+}
+
+# Postgres sobre TLS (cliente libpq 17+ com sslnegotiation=direct).
+server {
+    listen unix:/run/nginx/postgres.sock ssl proxy_protocol;
+    set_real_ip_from unix:;
+    include /etc/nginx/servicos-permitidos.conf;
+
+    ssl_certificate     /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_alpn            postgresql;
+
+    proxy_pass elojudicial_db;
+}
+
+# Redis sobre TLS (ex.: redis-cli --tls --sni <host>).
+server {
+    listen unix:/run/nginx/redis.sock ssl proxy_protocol;
+    set_real_ip_from unix:;
+    include /etc/nginx/servicos-permitidos.conf;
+
+    ssl_certificate     /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    proxy_pass elojudicial_redis;
+}

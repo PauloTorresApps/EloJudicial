@@ -4,9 +4,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from . import mni, senhas
+from .forms import CredencialForm
 from .models import Ambiente, Credencial, SistemaJudicial
 from .preferencias import ambiente_padrao, definir_ambiente_padrao
 
@@ -23,18 +24,26 @@ def _credencial(request, sistema):
     return request.user.credenciais_judiciais.filter(sistema=sistema).first()
 
 
-def lista(request):
+def contexto_sistemas(request, somente_com_credencial=False):
+    """Sistemas ativos com o usuário (login) do usuário logado — e somente dele."""
+    logins = dict(request.user.credenciais_judiciais.values_list('sistema_id', 'login'))
     sistemas = SistemaJudicial.objects.filter(ativo=True).annotate(
         total_ambientes=Count('ambientes', filter=Q(ambientes__ativo=True))
     ).order_by('nome')  # Meta.ordering é ignorado em consultas com agregação
-    logins = dict(request.user.credenciais_judiciais.values_list('sistema_id', 'login'))
+    if somente_com_credencial:
+        sistemas = sistemas.filter(pk__in=logins)
+    sistemas = list(sistemas)
     for sistema in sistemas:
         sistema.login_usuario = logins.get(sistema.pk, '')
-    return render(request, 'judicial/sistemas/lista.html', {
+    return {
         'sistemas': sistemas,
         'desbloqueados': senhas.sistemas_desbloqueados(request),
         'padrao': ambiente_padrao(request.user),
-    })
+    }
+
+
+def lista(request):
+    return render(request, 'judicial/sistemas/lista.html', contexto_sistemas(request))
 
 
 def ambientes(request, pk):
@@ -97,6 +106,34 @@ def avisos_pendentes(request, sistema_pk, pk):
         contexto['resultado'] = resultado
     contexto['consultado_em'] = timezone.localtime()
     return render(request, 'judicial/sistemas/_avisos.html', contexto)
+
+
+@require_http_methods(['GET', 'POST'])
+def credencial(request, pk):
+    """Cadastra ou altera o usuário do sistema judicial (um por sistema). A senha nunca é pedida aqui."""
+    sistema = get_object_or_404(SistemaJudicial, pk=pk, ativo=True)
+    atual = _credencial(request, sistema)
+    login_anterior = atual.login if atual else None  # is_valid() já altera a instância
+    form = CredencialForm(request.POST or None, instance=atual, usuario=request.user, sistema=sistema)
+    if request.method == 'POST' and form.is_valid():
+        if atual and login_anterior != form.cleaned_data['login']:
+            senhas.esquecer(request, sistema)  # a senha liberada era de outro usuário
+        form.save()
+        messages.success(request, 'Usuário atualizado.' if atual else 'Usuário cadastrado.')
+        return redirect('sistemas:ambientes', pk=sistema.pk)
+    return render(request, 'judicial/sistemas/credencial.html', {'sistema': sistema, 'form': form, 'credencial': atual})
+
+
+@require_http_methods(['GET', 'POST'])
+def excluir_credencial(request, pk):
+    sistema = get_object_or_404(SistemaJudicial, pk=pk)
+    credencial = get_object_or_404(Credencial, usuario=request.user, sistema=sistema)
+    if request.method == 'POST':
+        credencial.delete()
+        senhas.esquecer(request, sistema)
+        messages.success(request, f'Seu usuário do {sistema.nome} foi removido.')
+        return redirect('sistemas:ambientes', pk=sistema.pk) if sistema.ativo else redirect('sistemas:lista')
+    return render(request, 'judicial/sistemas/credencial_excluir.html', {'sistema': sistema, 'credencial': credencial})
 
 
 @require_POST

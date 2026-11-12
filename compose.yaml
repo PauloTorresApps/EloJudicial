@@ -19,7 +19,9 @@ services:
   redis:
     image: redis:8.8-alpine
     restart: unless-stopped
-    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--requirepass", "${REDIS_PASSWORD:-elojudicial}"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:-elojudicial}
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -38,14 +40,32 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-elojudicial}
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
-      REDIS_URL: redis://redis:6379/0
-    ports:
-      - "${WEB_PORT:-8000}:8000"
+      REDIS_URL: redis://:${REDIS_PASSWORD:-elojudicial}@redis:6379/0
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
 
+  # Único ponto de entrada externo (80 e 443). Os demais serviços não publicam portas:
+  # o sistema é servido pelo nginx e o banco/Redis são alcançados pela 443 via SNI.
+  nginx:
+    build: docker/nginx
+    restart: unless-stopped
+    environment:
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-localhost}
+      NGINX_DB_HOST: ${NGINX_DB_HOST:-db.localhost}
+      NGINX_REDIS_HOST: ${NGINX_REDIS_HOST:-redis.localhost}
+      NGINX_SERVICOS_PERMITIDOS: ${NGINX_SERVICOS_PERMITIDOS:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ${NGINX_CERTS_DIR:-./docker/nginx/certs}:/etc/nginx/certs
+      - acme:/var/www/acme
+    depends_on:
+      - web
+
 volumes:
   pgdata:
+  acme:

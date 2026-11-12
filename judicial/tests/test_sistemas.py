@@ -120,7 +120,7 @@ class TelasSistemasTests(TestCase):
         self.assertContains(resp, '2 ambientes de trabalho')
         self.assertContains(resp, reverse('sistemas:ambientes', args=[self.eproc.pk]))
         pje = SistemaJudicial.objects.get(nome='PJe')
-        self.assertNotContains(resp, reverse('sistemas:ambientes', args=[pje.pk]))  # sem ambientes: sem link
+        self.assertContains(resp, reverse('sistemas:ambientes', args=[pje.pk]))  # sem ambientes: abre para cadastrar o usuário
         self.assertContains(resp, 'Nenhum ambiente configurado')
 
     def test_lista_indica_que_a_senha_sera_solicitada(self):

@@ -1,0 +1,19 @@
+{% extends "layouts/app.html" %}
+{% load unfold %}
+{% block titulo %}Remover usuário · {{ sistema.nome }}{% endblock %}
+{% block content %}
+    {% include "judicial/sistemas/_trilha.html" %}
+    <div class="max-w-xl">
+        {% component "unfold/components/card.html" with title="Remover usuário" title_icon="delete" %}
+            <p class="leading-relaxed">Tem certeza que deseja remover seu usuário <strong class="text-important">{{ credencial.login }}</strong> do <strong class="text-important">{{ sistema.nome }}</strong>? O acesso liberado nesta sessão também será encerrado.</p>
+            <form method="post">
+                {% csrf_token %}
+                {% url 'sistemas:ambientes' sistema.pk as url_voltar %}
+                <div class="flex gap-3 justify-end mt-6">
+                    {% component "unfold/components/button.html" with href=url_voltar variant="default" %}Cancelar{% endcomponent %}
+                    {% component "unfold/components/button.html" with submit=1 variant="danger" %}Remover{% endcomponent %}
+                </div>
+            </form>
+        {% endcomponent %}
+    </div>
+{% endblock %}
