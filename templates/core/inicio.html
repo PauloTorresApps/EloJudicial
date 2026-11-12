@@ -1,0 +1,52 @@
+{% extends "layouts/app.html" %}
+{% load unfold %}
+{% block titulo %}Início{% endblock %}
+{% block content %}
+    <div class="mb-8">
+        <h1 class="font-semibold text-2xl text-important tracking-tight">
+            Bem-vindo(a), {{ user.get_full_name|default:user.username }}!
+        </h1>
+        <p class="mt-1 text-subtle">Esta é a sua área no {{ site_header }}.</p>
+    </div>
+
+    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {% component "unfold/components/card.html" with title="Minha conta" title_icon="person" %}
+            <dl class="flex flex-col gap-3">
+                <div><dt class="text-subtle text-xs">Usuário</dt><dd class="font-medium text-important">{{ user.username }}</dd></div>
+                <div><dt class="text-subtle text-xs">E-mail</dt><dd class="font-medium text-important">{{ user.email|default:"—" }}</dd></div>
+                <div><dt class="text-subtle text-xs">Membro desde</dt><dd class="font-medium text-important">{{ user.date_joined|date:"d/m/Y" }}</dd></div>
+            </dl>
+        {% endcomponent %}
+
+        {% url 'password_change' as url_senha %}
+        {% component "unfold/components/card.html" with title="Segurança" title_icon="key" %}
+            <p class="leading-relaxed mb-4">Mantenha sua conta protegida usando uma senha forte.</p>
+            {% component "unfold/components/button.html" with href=url_senha variant="default" icon="lock_reset" %}Alterar senha{% endcomponent %}
+        {% endcomponent %}
+
+        {% url 'sistemas:lista' as url_sistemas %}
+        {% component "unfold/components/card.html" with title="Sistemas judiciais" title_icon="account_balance" %}
+            {% if padrao %}
+                {% url 'sistemas:servicos' padrao.sistema_id padrao.pk as url_padrao %}
+                <p class="leading-relaxed mb-4">Seu ambiente padrão é <strong class="text-important">{{ padrao.sistema.nome }} · {{ padrao.descricao }}</strong>. Ele abre automaticamente quando você entra.</p>
+                <div class="flex flex-wrap gap-3">
+                    {% component "unfold/components/button.html" with href=url_padrao variant="primary" icon="star" %}Ir para o ambiente padrão{% endcomponent %}
+                    {% component "unfold/components/button.html" with href=url_sistemas variant="default" %}Outros sistemas{% endcomponent %}
+                </div>
+            {% else %}
+                <p class="leading-relaxed mb-4">Escolha o sistema judicial e o ambiente de trabalho para acessar os serviços de integração (MNI). Você pode definir um ambiente como padrão para abri-lo automaticamente ao entrar.</p>
+                {% component "unfold/components/button.html" with href=url_sistemas variant="primary" icon="arrow_forward" %}Acessar sistemas{% endcomponent %}
+            {% endif %}
+        {% endcomponent %}
+
+        {% url 'judicial:lista' as url_credenciais %}
+        {% component "unfold/components/card.html" with title="Credenciais judiciais" title_icon="badge" %}
+            <p class="leading-relaxed mb-4">
+                {% with total=user.credenciais_judiciais.count %}
+                    {% if total %}Você tem {{ total }} credencial{{ total|pluralize:"is" }} cadastrada{{ total|pluralize }}.{% else %}Cadastre seus usuários do EPROC, PROJUD, PJe e outros sistemas.{% endif %}
+                {% endwith %}
+            </p>
+            {% component "unfold/components/button.html" with href=url_credenciais variant="default" icon="badge" %}Gerenciar credenciais{% endcomponent %}
+        {% endcomponent %}
+    </div>
+{% endblock %}

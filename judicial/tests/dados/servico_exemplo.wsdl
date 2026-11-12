@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions name="mni"
+    xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+    xmlns:tic="http://www.cnj.jus.br/mni/v300/"
+    xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+    targetNamespace="http://www.cnj.jus.br/mni/v300/">
+    <wsdl:portType name="mni">
+        <wsdl:operation name="consultarProcesso">
+            <wsdl:documentation>
+Operação destinada a permitir a consulta a um processo judicial. Segunda frase que não aparece no resumo.
+            </wsdl:documentation>
+        </wsdl:operation>
+        <wsdl:operation name="consultarAvisosPendentes">
+            <wsdl:documentation>Operação de avisos.</wsdl:documentation>
+        </wsdl:operation>
+        <wsdl:operation name="entregarPeticao"/>
+        <wsdl:operation name="consultarClasses"/>
+        <wsdl:operation name="fazerAlgoNovo"/>
+    </wsdl:portType>
+    <wsdl:service name="mni">
+        <wsdl:port binding="tic:mniSOAP" name="mniSOAP">
+            <soap:address location="https://exemplo.jus.br/ws/controlador_ws.php?srv=intercomunicacao3.0"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

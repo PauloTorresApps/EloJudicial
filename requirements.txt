@@ -1,0 +1,11 @@
+asgiref==3.13.0
+defusedxml==0.7.1
+Django==5.2.19
+django-unfold==0.110.1
+gunicorn==23.0.0
+packaging==26.3
+psycopg==3.3.8
+psycopg-binary==3.3.8
+redis==6.4.0
+sqlparse==0.6.1
+whitenoise==6.12.0

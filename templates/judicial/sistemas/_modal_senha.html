@@ -1,0 +1,54 @@
+{% load unfold %}
+{% comment %}
+Modal que pede usuário e senha do sistema judicial.
+Usa a variável Alpine "aberto" do elemento pai (x-data="{ aberto: ... }").
+Parâmetros: sistema, login_inicial, voltar_para (URL após confirmar), erro_senha (opcional).
+A senha não é guardada: o servidor converte em hash SHA-256 e mantém só o hash em cache.
+{% endcomment %}
+<div class="flex flex-col fixed inset-0 items-center justify-center p-4 z-[1000]" x-cloak x-show="aberto" x-transition.opacity
+     x-on:keydown.escape.window="aberto = false" role="dialog" aria-modal="true" aria-labelledby="titulo-senha-{{ sistema.pk }}">
+    <div class="absolute backdrop-blur-xs bg-base-900/20 inset-0 dark:bg-base-900/80" x-on:click="aberto = false"></div>
+
+    <form method="post" action="{% url 'sistemas:informar_senha' sistema.pk %}" autocomplete="off"
+          class="bg-white flex flex-col max-w-xl overflow-hidden relative rounded-default shadow-lg w-full dark:bg-base-800"
+          x-trap.noscroll="aberto">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ voltar_para }}">
+
+        <div class="border-b border-base-200 flex gap-3 items-center px-6 py-4 dark:border-base-700">
+            <div class="bg-primary-600 flex h-[38px] items-center justify-center rounded-default text-white w-[38px]">
+                <span class="material-symbols-outlined">lock</span>
+            </div>
+            <div class="flex flex-col">
+                <h2 id="titulo-senha-{{ sistema.pk }}" class="font-semibold text-[15px] text-important">Acessar {{ sistema.nome }}</h2>
+                <p class="text-subtle">Informe sua senha do {{ sistema.nome }} para continuar.</p>
+            </div>
+        </div>
+
+        <div class="flex flex-col px-6 py-4">
+            {% if erro_senha %}
+                {% include "unfold/helpers/messages/error.html" with message=erro_senha %}
+            {% endif %}
+
+            <div class="flex flex-col gap-2 mb-4">
+                <label for="login-{{ sistema.pk }}" class="font-semibold text-important">Usuário no sistema<span class="text-red-600 dark:text-red-500">*</span></label>
+                <input id="login-{{ sistema.pk }}" name="login" type="text" required maxlength="150" value="{{ login_inicial|default:'' }}"
+                       class="{{ classes_input }}" placeholder="CPF ou matrícula" autocomplete="username">
+            </div>
+            <div class="flex flex-col gap-2">
+                <label for="senha-{{ sistema.pk }}" class="font-semibold text-important">Senha<span class="text-red-600 dark:text-red-500">*</span></label>
+                <input id="senha-{{ sistema.pk }}" name="senha" type="password" required class="{{ classes_input }}" autocomplete="current-password"
+                       x-effect="if (aberto) $nextTick(() => $el.focus())">
+            </div>
+            <p class="leading-relaxed mt-4 text-subtle text-xs">
+                <span class="material-symbols-outlined align-middle text-sm">shield</span>
+                Sua senha não é armazenada. Ela fica disponível apenas durante esta sessão e será pedida novamente quando expirar ou quando você sair do Jilo.
+            </p>
+        </div>
+
+        <div class="border-t border-base-200 flex gap-3 justify-end px-6 py-4 dark:border-base-700">
+            <button type="button" x-on:click="aberto = false" class="bg-white border border-base-200 cursor-pointer font-medium px-3 py-2 rounded-default shadow-xs text-important hover:bg-base-100/80 dark:bg-transparent dark:border-base-700 dark:hover:bg-base-800/80">Cancelar</button>
+            {% component "unfold/components/button.html" with submit=1 variant="primary" icon="login" %}Acessar{% endcomponent %}
+        </div>
+    </form>
+</div>

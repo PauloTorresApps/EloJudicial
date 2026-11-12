@@ -1,0 +1,36 @@
+{% extends 'unfold/layouts/skeleton.html' %}
+{% load unfold %}
+{% comment %}Layout das páginas sem login (entrar, cadastro, recuperação de senha), no mesmo padrão da tela de login do Unfold.{% endcomment %}
+
+{% block title %}{% block titulo %}{% endblock %} | {{ site_title }}{% endblock %}
+
+{% block bodyclass %}{{ block.super }}bg-base-50 login dark:bg-base-900{% endblock %}
+
+{% block base %}
+    <div id="page" class="bg-white flex min-h-screen dark:bg-base-900">
+        <div class="flex grow items-center justify-center mx-auto px-4 relative">
+            <div class="w-full sm:w-96 py-16">
+                <div class="border-b border-base-200 mb-8 pb-6 dark:border-base-800">
+                    <h1 class="font-semibold">
+                        <span class="block text-font-important-light dark:text-font-important-dark">{% block subtitulo %}{% endblock %}</span>
+                        <span class="block font-semibold text-primary-600 tracking-tight text-xl dark:text-primary-500">{% block cabecalho %}{{ site_header }}{% endblock %}</span>
+                    </h1>
+                </div>
+
+                {% include "unfold/helpers/messages.html" %}
+
+                {% block content %}{% endblock %}
+            </div>
+
+            <div class="absolute flex flex-row items-center justify-between left-0 m-4 right-0 top-0">
+                <div class="ml-auto">
+                    {% include "unfold/helpers/theme_switch_dropdown.html" %}
+                </div>
+            </div>
+        </div>
+
+        {% if login_image %}
+            <div class="bg-cover grow hidden max-w-3xl xl:max-w-4xl xl:block" style="background-image: url('{{ login_image }}')"></div>
+        {% endif %}
+    </div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "layouts/publico.html" %}
+{% load unfold %}
+{% block titulo %}Recuperar senha{% endblock %}
+{% block subtitulo %}Esqueceu sua senha?{% endblock %}
+{% block cabecalho %}Recuperar senha{% endblock %}
+{% block content %}
+    <p class="leading-relaxed mb-6">Informe o e-mail cadastrado. Enviaremos um link para você criar uma nova senha.</p>
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {% include "contas/_form.html" %}
+        <div class="mt-6">
+        {% component "unfold/components/button.html" with submit=1 variant="primary" class="w-full" %}
+            Enviar link <span class="material-symbols-outlined relative right-0 transition-all group-hover:-right-1 text-sm">arrow_forward</span>
+        {% endcomponent %}
+        </div>
+    </form>
+    <div class="border-t border-base-200 mt-8 pt-6 text-center dark:border-base-800"><a href="{% url 'login' %}" class="font-medium text-primary-600 dark:text-primary-500">Voltar ao login</a></div>
+{% endblock %}

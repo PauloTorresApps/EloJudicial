@@ -1,0 +1,9 @@
+{% extends "layouts/publico.html" %}
+{% block titulo %}E-mail enviado{% endblock %}
+{% block subtitulo %}Recuperação de senha{% endblock %}
+{% block cabecalho %}Verifique seu e-mail{% endblock %}
+{% block content %}
+    {% include "unfold/helpers/messages/success.html" with message="Se houver uma conta com o e-mail informado, você receberá em instantes as instruções para criar uma nova senha." %}
+    <p class="leading-relaxed mt-4">Não recebeu? Confira a caixa de spam.</p>
+    <div class="border-t border-base-200 mt-8 pt-6 text-center dark:border-base-800"><a href="{% url 'login' %}" class="font-medium text-primary-600 dark:text-primary-500">Voltar ao login</a></div>
+{% endblock %}

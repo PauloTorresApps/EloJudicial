@@ -1,0 +1,61 @@
+{% extends "layouts/app.html" %}
+{% load unfold %}
+{% block titulo %}Sistemas judiciais{% endblock %}
+{% block content %}
+    <div class="mb-6">
+        <h1 class="font-semibold text-2xl text-important tracking-tight">Sistemas judiciais</h1>
+        <p class="mt-1 text-subtle">Escolha o sistema judicial com o qual deseja trabalhar.</p>
+    </div>
+
+    {% if sistemas %}
+        <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {% for sistema in sistemas %}
+                {% capture as corpo silent %}
+                    <div class="flex flex-col gap-3">
+                        <div class="flex gap-2 items-center">
+                            <span class="material-symbols-outlined text-subtle">dns</span>
+                            {% if sistema.total_ambientes %}
+                                {{ sistema.total_ambientes }} ambiente{{ sistema.total_ambientes|pluralize }} de trabalho
+                            {% else %}
+                                <span class="text-subtle">Nenhum ambiente configurado</span>
+                            {% endif %}
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            {% if padrao and padrao.sistema_id == sistema.pk %}
+                                {% include "unfold/helpers/label.html" with text="★ padrão: "|add:padrao.descricao type="primary" href="" %}
+                            {% endif %}
+                            {% if sistema.pk in desbloqueados %}
+                                {% include "unfold/helpers/label.html" with text="acesso liberado" type="success" href="" %}
+                            {% elif sistema.total_ambientes %}
+                                {% include "unfold/helpers/label.html" with text="senha será solicitada" href="" %}
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endcapture %}
+
+                {% if not sistema.total_ambientes %}
+                    {% component "unfold/components/card.html" with title=sistema.nome title_icon="account_balance" description=sistema.descricao %}{{ corpo }}{% endcomponent %}
+                {% elif sistema.pk in desbloqueados %}
+                    {% url 'sistemas:ambientes' sistema.pk as url_sistema %}
+                    {% component "unfold/components/card.html" with href=url_sistema title=sistema.nome title_icon="account_balance" description=sistema.descricao %}{{ corpo }}{% endcomponent %}
+                {% else %}
+                    {% url 'sistemas:ambientes' sistema.pk as url_sistema %}
+                    <div x-data="{ aberto: false }" class="flex">
+                        <a href="{{ url_sistema }}" class="flex grow" x-on:click.prevent="aberto = true">
+                            {% component "unfold/components/card.html" with title=sistema.nome title_icon="account_balance" description=sistema.descricao class="cursor-pointer transition-all hover:border-base-300 hover:shadow-md dark:hover:border-base-700" %}{{ corpo }}{% endcomponent %}
+                        </a>
+                        {% include "judicial/sistemas/_modal_senha.html" with login_inicial=sistema.login_usuario voltar_para=url_sistema %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% else %}
+        {% component "unfold/components/card.html" %}
+            <div class="flex flex-col gap-3 items-center py-8 text-center">
+                <span class="material-symbols-outlined text-base-300 text-6xl! dark:text-base-500">account_balance</span>
+                <p class="font-semibold text-important">Nenhum sistema judicial disponível</p>
+                <p class="text-subtle">Peça ao administrador para cadastrar os sistemas judiciais.</p>
+            </div>
+        {% endcomponent %}
+    {% endif %}
+{% endblock %}

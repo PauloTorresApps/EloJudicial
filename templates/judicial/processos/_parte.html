@@ -1,0 +1,13 @@
+{% comment %}Uma parte do processo e seus representantes. Parâmetro: parte.{% endcomment %}
+<div class="flex flex-col gap-1">
+    <div class="flex flex-wrap gap-2 items-center">
+        <span class="bg-primary-600 font-semibold px-2 py-0.5 rounded-default text-white">{{ parte.nome }}</span>
+        {% if parte.documento_formatado %}<span class="text-important">({{ parte.documento_formatado }})</span>{% endif %}
+        {% if parte.tipo_pessoa_descricao %}<span class="text-subtle">· {{ parte.tipo_pessoa_descricao }}</span>{% endif %}
+    </div>
+    {% for rep in parte.representantes %}
+        <div class="pl-4 text-subtle text-xs">
+            <span class="font-medium text-important">{{ rep.nome }}</span>{% if rep.inscricao_formatada %} · {{ rep.inscricao_formatada }}{% endif %}
+        </div>
+    {% endfor %}
+</div>

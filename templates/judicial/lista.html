@@ -1,0 +1,83 @@
+{% extends "layouts/app.html" %}
+{% load unfold %}
+{% block titulo %}Credenciais judiciais{% endblock %}
+{% block content %}
+    {% url 'judicial:criar' as url_criar %}
+    <div class="flex flex-col gap-4 mb-6 md:flex-row md:items-center justify-between">
+        <div>
+            <h1 class="font-semibold text-2xl text-important tracking-tight">Credenciais judiciais</h1>
+            <p class="mt-1 text-subtle">Seus usuários de acesso aos sistemas judiciais.</p>
+        </div>
+        {% if ha_sistemas_disponiveis %}
+            <div>
+                {% component "unfold/components/button.html" with href=url_criar variant="primary" icon="add" %}Nova credencial{% endcomponent %}
+            </div>
+        {% endif %}
+    </div>
+
+    {% if credenciais %}
+        <div class="bg-white border border-base-200 overflow-hidden rounded-default shadow-xs dark:bg-base-900 dark:border-base-800">
+            <div class="overflow-x-auto">
+                <table class="border-separate border-spacing-none w-full">
+                    <thead class="text-important">
+                        <tr class="bg-base-50 dark:bg-base-900">
+                            <th class="border-b border-base-200 font-semibold px-3 py-2 text-left whitespace-nowrap dark:border-base-800">Sistema</th>
+                            <th class="border-b border-base-200 font-semibold px-3 py-2 text-left whitespace-nowrap dark:border-base-800">Usuário no sistema</th>
+                            <th class="border-b border-base-200 font-semibold px-3 py-2 dark:border-base-800"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in credenciais %}
+                            <tr>
+                                <td class="align-middle border-base-200 px-3 py-2 dark:border-base-800 {% if not forloop.first %}border-t{% endif %}">
+                                    <div class="flex gap-2 items-center">
+                                        <span class="font-semibold text-important">{{ c.sistema.nome }}</span>
+                                        {% if not c.sistema.ativo %}
+                                            {% include "unfold/helpers/label.html" with text="inativo" type="warning" href="" %}
+                                        {% endif %}
+                                    </div>
+                                    {% if c.sistema.descricao %}<div class="hidden text-subtle text-xs md:block">{{ c.sistema.descricao }}</div>{% endif %}
+                                </td>
+                                <td class="align-middle border-base-200 px-3 py-2 dark:border-base-800 {% if not forloop.first %}border-t{% endif %}">
+                                    <div class="font-medium text-important">{{ c.login }}</div>
+                                    <div class="text-subtle text-xs">Atualizado em {{ c.atualizado_em|date:"d/m/Y H:i" }}</div>
+                                </td>
+                                <td class="align-middle border-base-200 px-3 py-2 text-right whitespace-nowrap dark:border-base-800 {% if not forloop.first %}border-t{% endif %}">
+                                    <div class="flex gap-2 justify-end">
+                                        {% if c.sistema.url %}
+                                            <a href="{{ c.sistema.url }}" target="_blank" rel="noopener" title="Abrir {{ c.sistema.nome }}" class="flex items-center px-2 py-1 rounded-default hover:bg-base-100 dark:hover:bg-base-800">
+                                                <span class="material-symbols-outlined">open_in_new</span>
+                                            </a>
+                                        {% endif %}
+                                        <a href="{% url 'judicial:editar' c.pk %}" title="Editar" class="flex items-center px-2 py-1 rounded-default hover:bg-base-100 dark:hover:bg-base-800">
+                                            <span class="material-symbols-outlined">edit</span>
+                                        </a>
+                                        <a href="{% url 'judicial:excluir' c.pk %}" title="Excluir" class="flex items-center px-2 py-1 rounded-default text-red-700 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/20">
+                                            <span class="material-symbols-outlined">delete</span>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% if not ha_sistemas_disponiveis %}
+            <p class="mt-4 text-subtle">Você já cadastrou credenciais para todos os sistemas disponíveis.</p>
+        {% endif %}
+    {% else %}
+        {% component "unfold/components/card.html" %}
+            <div class="flex flex-col gap-3 items-center py-8 text-center">
+                <span class="material-symbols-outlined text-base-300 text-6xl! dark:text-base-500">badge</span>
+                <p class="font-semibold text-important">Nenhuma credencial cadastrada</p>
+                <p class="text-subtle">Cadastre seus usuários de acesso ao EPROC, PROJUD, PJe e outros sistemas.</p>
+                {% if ha_sistemas_disponiveis %}
+                    {% component "unfold/components/button.html" with href=url_criar variant="primary" icon="add" class="mt-2" %}Cadastrar credencial{% endcomponent %}
+                {% else %}
+                    <p class="text-subtle">Nenhum sistema judicial disponível no momento.</p>
+                {% endif %}
+            </div>
+        {% endcomponent %}
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,16 @@
+{% comment %}
+Seção recolhível no estilo do layout (título com ícone de abrir/fechar).
+Parâmetros: titulo, contador (opcional), aberta (bool), conteudo.
+{% endcomment %}
+<section class="bg-white border border-base-200 mb-4 overflow-hidden rounded-default shadow-xs dark:bg-base-900 dark:border-base-800"
+         x-data="{ aberta: {{ aberta|yesno:'true,false' }} }">
+    <button type="button" x-on:click="aberta = !aberta" x-bind:aria-expanded="aberta"
+            class="cursor-pointer flex font-semibold gap-2 items-center px-4 py-3 text-important text-left w-full hover:bg-base-50 dark:hover:bg-base-800">
+        <span class="material-symbols-outlined text-primary-600 transition-all dark:text-primary-500" x-bind:class="aberta ? '' : '-rotate-90'">expand_more</span>
+        {{ titulo }}
+        {% if contador is not None %}<span class="font-normal text-subtle">({{ contador }})</span>{% endif %}
+    </button>
+    <div x-show="aberta" x-cloak class="border-t border-base-200 dark:border-base-800">
+        {{ conteudo }}
+    </div>
+</section>

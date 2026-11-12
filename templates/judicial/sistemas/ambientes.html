@@ -1,0 +1,52 @@
+{% extends "layouts/app.html" %}
+{% load unfold %}
+{% block titulo %}{{ sistema.nome }}    {% if not senha_ok %}
+        {% include "judicial/sistemas/_modal_senha.html" with login_inicial=credencial.login voltar_para=request.path %}
+    {% endif %}
+    </div>
+{% endblock %}
+{% block content %}
+    <div x-data="{ aberto: {{ senha_ok|yesno:'false,true' }} }">
+    {% include "judicial/sistemas/_trilha.html" %}
+
+    <div class="mb-6">
+        <h1 class="font-semibold text-2xl text-important tracking-tight">{{ sistema.nome }}</h1>
+        <p class="mt-1 text-subtle">Escolha o ambiente de trabalho.{% if sistema.descricao %} {{ sistema.descricao }}.{% endif %}</p>
+    </div>
+
+    {% if not senha_ok %}
+        <div class="mb-6">
+            {% include "unfold/helpers/messages/warning.html" with message="Informe sua senha para acessar os serviços deste sistema." %}
+            <button type="button" x-on:click="aberto = true" class="bg-primary-600 cursor-pointer flex font-medium gap-1 items-center px-3 py-2 rounded-default text-white hover:bg-primary-600/80">
+                <span class="material-symbols-outlined">lock_open</span> Informar senha
+            </button>
+        </div>
+    {% endif %}
+
+    {% if ambientes %}
+        <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {% for ambiente in ambientes %}
+                {% url 'sistemas:servicos' sistema.pk ambiente.pk as url_ambiente %}
+                {% component "unfold/components/card.html" with href=url_ambiente title=ambiente.descricao title_icon="dns" %}
+                    <div class="flex flex-col gap-3">
+                        <p class="text-subtle">Avisos pendentes e serviços do {{ ambiente.descricao }}.</p>
+                        {% if ambiente.pk == ambiente_atual_id or ambiente.pk == padrao.pk %}
+                            <div class="flex gap-2">
+                                {% if ambiente.pk == padrao.pk %}{% include "unfold/helpers/label.html" with text="★ padrão" type="primary" href="" %}{% endif %}
+                                {% if ambiente.pk == ambiente_atual_id %}{% include "unfold/helpers/label.html" with text="em uso" type="info" href="" %}{% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endcomponent %}
+            {% endfor %}
+        </div>
+    {% else %}
+        {% component "unfold/components/card.html" %}
+            <p class="py-6 text-center text-subtle">Este sistema ainda não tem ambientes configurados.</p>
+        {% endcomponent %}
+    {% endif %}
+    {% if not senha_ok %}
+        {% include "judicial/sistemas/_modal_senha.html" with login_inicial=credencial.login voltar_para=request.path %}
+    {% endif %}
+    </div>
+{% endblock %}

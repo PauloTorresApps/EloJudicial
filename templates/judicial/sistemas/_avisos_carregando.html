@@ -1,0 +1,8 @@
+{% load unfold %}
+{% component "unfold/components/card.html" with title="Avisos pendentes" title_icon="notifications" %}
+    <div class="flex flex-col gap-3 items-center py-10 text-center">
+        <span class="animate-spin material-symbols-outlined text-primary-600 text-6xl! dark:text-primary-500">progress_activity</span>
+        <p class="font-medium text-important">Consultando avisos pendentes no {{ sistema.nome }} · {{ ambiente.descricao }}…</p>
+        <p class="text-subtle">Isso pode levar alguns segundos.</p>
+    </div>
+{% endcomponent %}

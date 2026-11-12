@@ -1,0 +1,8 @@
+{% extends "layouts/publico.html" %}
+{% block titulo %}Link inválido{% endblock %}
+{% block subtitulo %}Confirmação de e-mail{% endblock %}
+{% block cabecalho %}Link inválido ou expirado{% endblock %}
+{% block content %}
+    {% include "unfold/helpers/messages/error.html" with message="Este link de confirmação não é válido, expirou ou já foi usado." %}
+    <p class="leading-relaxed mt-4">Se sua conta já está ativa, basta <a href="{% url 'login' %}" class="font-medium text-primary-600 dark:text-primary-500">entrar</a>. Caso contrário, <a href="{% url 'reenviar_confirmacao' %}" class="font-medium text-primary-600 dark:text-primary-500">solicite um novo link</a>.</p>
+{% endblock %}

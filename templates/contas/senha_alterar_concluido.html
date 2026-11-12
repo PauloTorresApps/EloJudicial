@@ -1,0 +1,14 @@
+{% extends "layouts/app.html" %}
+{% load unfold %}
+{% block titulo %}Senha alterada{% endblock %}
+{% block content %}
+    <div class="max-w-xl">
+        {% component "unfold/components/card.html" with title="Senha alterada" title_icon="check" %}
+            {% include "unfold/helpers/messages/success.html" with message="Sua senha foi alterada com sucesso." %}
+            {% url 'inicio' as url_inicio %}
+            <div class="flex justify-end mt-6">
+                {% component "unfold/components/button.html" with href=url_inicio variant="primary" %}Voltar ao início{% endcomponent %}
+            </div>
+        {% endcomponent %}
+    </div>
+{% endblock %}

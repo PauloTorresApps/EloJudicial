@@ -1,0 +1,52 @@
+{% extends "layouts/app.html" %}
+{% load unfold %}
+{% block titulo %}Processo {{ numero_formatado }}{% endblock %}
+{% block content %}
+    <nav class="flex flex-row flex-wrap gap-2 items-center mb-4 text-subtle">
+        <a href="{% url 'sistemas:lista' %}" class="hover:text-primary-600 dark:hover:text-primary-500">Sistemas</a>
+        <span class="material-symbols-outlined text-sm">chevron_right</span>
+        <a href="{% url 'sistemas:ambientes' sistema.pk %}" class="hover:text-primary-600 dark:hover:text-primary-500">{{ sistema.nome }}</a>
+        <span class="material-symbols-outlined text-sm">chevron_right</span>
+        <a href="{% url 'sistemas:servicos' sistema.pk ambiente.pk %}" class="hover:text-primary-600 dark:hover:text-primary-500">{{ ambiente.descricao }}</a>
+        <span class="material-symbols-outlined text-sm">chevron_right</span>
+        <span class="font-medium text-important">Processo</span>
+    </nav>
+
+    <div class="flex flex-col gap-4 mb-6 md:flex-row md:items-center justify-between">
+        <div>
+            <h1 class="font-semibold text-2xl text-important tracking-tight">Consulta processual · Detalhes do processo</h1>
+            <p id="estado-acesso" class="mt-1 text-subtle">
+                {{ sistema.nome }} · {{ ambiente.descricao }}{% if senha_ok %} · consultado como <strong class="text-important">{{ credencial.login }}</strong>{% endif %}
+            </p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+            <button type="button" onclick="const c = document.querySelector('input[name=numero]'); c.value = ''; c.focus();"
+                    class="bg-primary-600 cursor-pointer flex font-medium gap-1 items-center px-3 py-2 rounded-default text-white hover:bg-primary-600/80">
+                <span class="material-symbols-outlined">search</span> Nova consulta
+            </button>
+            <button type="button" onclick="window.print()"
+                    class="bg-white border border-base-200 cursor-pointer flex font-medium gap-1 items-center px-3 py-2 rounded-default shadow-xs text-important hover:bg-base-100/80 dark:bg-transparent dark:border-base-700 dark:hover:bg-base-800/80">
+                <span class="material-symbols-outlined">print</span> Imprimir
+            </button>
+            {% url 'sistemas:servicos' sistema.pk ambiente.pk as url_ambiente %}
+            {% component "unfold/components/button.html" with href=url_ambiente variant="default" icon="arrow_back" %}Voltar{% endcomponent %}
+        </div>
+    </div>
+
+    {% if senha_ok %}
+        {% url 'sistemas:processo_dados' sistema.pk ambiente.pk numero as url_dados %}
+        <div id="processo" hx-get="{{ url_dados }}" hx-trigger="load" hx-swap="innerHTML">
+            {% component "unfold/components/card.html" with title="Consultando processo" title_icon="gavel" %}
+                <div class="flex flex-col gap-3 items-center py-10 text-center">
+                    <span class="animate-spin material-symbols-outlined text-primary-600 text-6xl! dark:text-primary-500">progress_activity</span>
+                    <p class="font-medium text-important">Consultando o processo {{ numero_formatado }} no {{ sistema.nome }} · {{ ambiente.descricao }}…</p>
+                    <p class="text-subtle">Isso pode levar alguns segundos.</p>
+                </div>
+            {% endcomponent %}
+        </div>
+    {% else %}
+        <div id="processo">
+            {% include "judicial/sistemas/_senha_necessaria.html" with titulo="Processo" icone="gavel" texto="A consulta do processo começa assim que você informar a senha." voltar_para=request.path login_inicial=credencial.login %}
+        </div>
+    {% endif %}
+{% endblock %}

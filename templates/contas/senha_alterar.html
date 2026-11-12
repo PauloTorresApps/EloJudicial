@@ -1,0 +1,18 @@
+{% extends "layouts/app.html" %}
+{% load unfold %}
+{% block titulo %}Alterar senha{% endblock %}
+{% block content %}
+    <div class="max-w-xl">
+        {% component "unfold/components/card.html" with title="Alterar senha" title_icon="key" description="Informe sua senha atual e escolha uma nova." %}
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {% include "contas/_form.html" %}
+                <div class="flex gap-3 justify-end mt-6">
+                    {% url 'inicio' as url_inicio %}
+                    {% component "unfold/components/button.html" with href=url_inicio variant="default" %}Cancelar{% endcomponent %}
+                    {% component "unfold/components/button.html" with submit=1 variant="primary" %}Salvar nova senha{% endcomponent %}
+                </div>
+            </form>
+        {% endcomponent %}
+    </div>
+{% endblock %}

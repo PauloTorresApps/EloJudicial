@@ -1,0 +1,9 @@
+{% comment %}Renderiza erros gerais e campos de um formulário no padrão Unfold.{% endcomment %}
+{% if form.non_field_errors %}
+    <div class="flex flex-col gap-4 mb-6 *:mb-0">
+        {% include "unfold/helpers/messages/error.html" with errors=form.non_field_errors %}
+    </div>
+{% endif %}
+{% for field in form %}
+    {% include "unfold/helpers/field.html" with field=field %}
+{% endfor %}

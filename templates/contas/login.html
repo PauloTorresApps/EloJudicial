@@ -1,0 +1,39 @@
+{% extends "layouts/publico.html" %}
+{% load unfold %}
+{% block titulo %}Entrar{% endblock %}
+{% block subtitulo %}Bem-vindo(a) de volta ao{% endblock %}
+{% block content %}
+    {% if form.non_field_errors %}
+        <div class="flex flex-col gap-4 mb-6 *:mb-0">
+            {% include "unfold/helpers/messages/error.html" with errors=form.non_field_errors %}
+            {% include "unfold/helpers/messages/info.html" with message="Acabou de se cadastrar? Confirme seu e-mail antes de entrar." %}
+        </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {% include "unfold/helpers/field.html" with field=form.username %}
+        {% include "unfold/helpers/field.html" with field=form.password %}
+        <input type="hidden" name="next" value="{{ next }}">
+
+        {% url 'password_reset' as url_recuperar %}
+        {% url 'cadastro' as url_cadastro %}
+        <div class="flex flex-col gap-3 mt-6">
+            {% component "unfold/components/button.html" with submit=1 variant="primary" class="w-full" %}
+                Entrar <span class="material-symbols-outlined relative right-0 transition-all group-hover:-right-1 text-sm">arrow_forward</span>
+            {% endcomponent %}
+            {% component "unfold/components/button.html" with href=url_recuperar variant="secondary" class="w-full" %}
+                Esqueci minha senha
+            {% endcomponent %}
+        </div>
+    </form>
+
+    <div class="border-t border-base-200 mt-8 pt-6 text-center dark:border-base-800">
+        Não tem conta? <a href="{{ url_cadastro }}" class="font-medium text-primary-600 dark:text-primary-500">Cadastre-se</a>
+    </div>
+    {% if form.non_field_errors %}
+        <div class="mt-3 text-center text-subtle">
+            Não recebeu a confirmação? <a href="{% url 'reenviar_confirmacao' %}" class="font-medium text-primary-600 dark:text-primary-500">Reenviar confirmação</a>
+        </div>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "layouts/publico.html" %}
+{% load unfold %}
+{% block titulo %}Nova senha{% endblock %}
+{% block subtitulo %}Recuperação de senha{% endblock %}
+{% block cabecalho %}{% if validlink %}Criar nova senha{% else %}Link inválido{% endif %}{% endblock %}
+{% block content %}
+    {% if validlink %}
+        <form method="post" novalidate>
+            {% csrf_token %}
+            {% include "contas/_form.html" %}
+            <div class="mt-6">
+        {% component "unfold/components/button.html" with submit=1 variant="primary" class="w-full" %}
+            Salvar nova senha <span class="material-symbols-outlined relative right-0 transition-all group-hover:-right-1 text-sm">arrow_forward</span>
+        {% endcomponent %}
+            </div>
+        </form>
+    {% else %}
+        {% include "unfold/helpers/messages/error.html" with message="Este link de recuperação é inválido ou já foi usado." %}
+    <div class="border-t border-base-200 mt-8 pt-6 text-center dark:border-base-800"><a href="{% url 'password_reset' %}" class="font-medium text-primary-600 dark:text-primary-500">Solicitar novo link</a></div>
+    {% endif %}
+{% endblock %}

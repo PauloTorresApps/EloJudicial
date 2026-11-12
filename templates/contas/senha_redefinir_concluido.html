@@ -1,0 +1,12 @@
+{% extends "layouts/publico.html" %}
+{% load unfold %}
+{% block titulo %}Senha redefinida{% endblock %}
+{% block subtitulo %}Recuperação de senha{% endblock %}
+{% block cabecalho %}Senha redefinida{% endblock %}
+{% block content %}
+    {% include "unfold/helpers/messages/success.html" with message="Sua nova senha foi salva. Você já pode entrar." %}
+    {% url 'login' as url_login %}
+    <div class="mt-6">
+        {% component "unfold/components/button.html" with href=url_login variant="primary" class="w-full" %}Entrar{% endcomponent %}
+    </div>
+{% endblock %}

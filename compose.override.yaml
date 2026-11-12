@@ -1,0 +1,27 @@
+# Ajustes de desenvolvimento (aplicados automaticamente pelo `docker compose up`).
+# Para produção: docker compose -f compose.yaml up -d
+services:
+  web:
+    command: python manage.py runserver 0.0.0.0:8000
+    environment:
+      DJANGO_DEBUG: "True"
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0"
+      EMAIL_HOST: mailpit
+      EMAIL_PORT: "1025"
+      EMAIL_HOST_USER: ""
+      EMAIL_HOST_PASSWORD: ""
+      EMAIL_USE_TLS: "False"
+      EMAIL_USE_SSL: "False"
+    volumes:
+      - .:/app
+    depends_on:
+      - mailpit
+
+  # Captura todos os e-mails enviados em dev. Interface web: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.33
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 500
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"

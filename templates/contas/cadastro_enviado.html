@@ -1,0 +1,10 @@
+{% extends "layouts/publico.html" %}
+{% block titulo %}Confirme seu e-mail{% endblock %}
+{% block subtitulo %}Quase lá!{% endblock %}
+{% block cabecalho %}Confirme seu e-mail{% endblock %}
+{% block content %}
+    {% include "unfold/helpers/messages/success.html" with message="Enviamos um link de confirmação para o e-mail informado." %}
+    <p class="leading-relaxed mt-4">Clique no link para ativar sua conta. Ele vale por 3 dias.</p>
+    <p class="leading-relaxed mt-2">Não recebeu? Confira a caixa de spam ou <a href="{% url 'reenviar_confirmacao' %}" class="font-medium text-primary-600 dark:text-primary-500">peça um novo link</a>.</p>
+    <div class="border-t border-base-200 mt-8 pt-6 text-center dark:border-base-800"><a href="{% url 'login' %}" class="font-medium text-primary-600 dark:text-primary-500">Ir para o login</a></div>
+{% endblock %}

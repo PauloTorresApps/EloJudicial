@@ -1,0 +1,19 @@
+{% extends "layouts/app.html" %}
+{% load unfold %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block content %}
+    <div class="max-w-xl">
+        {% component "unfold/components/card.html" with title=titulo title_icon="badge" description="Informe o sistema judicial e o usuário que você usa para acessá-lo. A senha não é guardada: ela é pedida quando você acessa o sistema." %}
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
+                {% include "contas/_form.html" %}
+                {% url 'judicial:lista' as url_lista %}
+                <div class="flex gap-3 justify-end mt-6">
+                    {% component "unfold/components/button.html" with href=url_lista variant="default" %}Cancelar{% endcomponent %}
+                    {% component "unfold/components/button.html" with submit=1 variant="primary" %}Salvar{% endcomponent %}
+                </div>
+            </form>
+        {% endcomponent %}
+    </div>
+{% endblock %}

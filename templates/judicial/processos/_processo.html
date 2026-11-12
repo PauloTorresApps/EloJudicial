@@ -1,0 +1,182 @@
+{% load unfold %}
+{% url 'sistemas:processo_dados' sistema.pk ambiente.pk numero as url_dados %}
+{% capture as botao_atualizar silent %}
+    <button type="button" class="bg-white border border-base-200 cursor-pointer flex font-medium gap-1 items-center px-3 py-2 rounded-default shadow-xs text-important hover:bg-base-100/80 dark:bg-transparent dark:border-base-700 dark:hover:bg-base-800/80"
+            hx-get="{{ url_dados }}" hx-target="#processo" hx-swap="innerHTML" hx-disabled-elt="this" x-data="{ carregando: false }" x-on:htmx:before-request="carregando = true">
+        <span class="material-symbols-outlined" x-bind:class="{ 'animate-spin': carregando }">refresh</span> Atualizar
+    </button>
+{% endcapture %}
+
+{% if pedir_senha %}
+    {% include "judicial/sistemas/_senha_necessaria.html" with titulo="Processo" icone="gavel" texto="A consulta do processo começa assim que você informar a senha." login_inicial=credencial.login %}
+    {% if erro_senha %}<p id="estado-acesso" hx-swap-oob="true" class="mt-1 text-subtle">{{ sistema.nome }} · {{ ambiente.descricao }} · senha recusada pelo tribunal</p>{% endif %}
+
+{% elif erro %}
+    {% component "unfold/components/card.html" with title="Processo" title_icon="gavel" action=botao_atualizar %}
+        {% include "unfold/helpers/messages/error.html" with message=erro %}
+    {% endcomponent %}
+
+{% elif not resultado.processo %}
+    {% component "unfold/components/card.html" with title="Processo não disponível" title_icon="gavel" action=botao_atualizar %}
+        <p class="font-semibold mb-2 text-important">O tribunal não retornou o processo {{ numero_formatado }}:</p>
+        {% for msg in resultado.mensagens %}
+            {% include "unfold/helpers/messages/warning.html" with message=msg %}
+        {% empty %}
+            {% include "unfold/helpers/messages/warning.html" with message="Processo não encontrado neste ambiente." %}
+        {% endfor %}
+        <p class="mt-2 text-subtle">Confira o número e se o processo pertence a este ambiente ({{ sistema.nome }} · {{ ambiente.descricao }}).</p>
+    {% endcomponent %}
+
+{% else %}
+{% with p=resultado.processo %}
+
+{% if resultado.documentos_omitidos %}
+    {% include "unfold/helpers/messages/warning.html" with message="Este processo é muito grande para trazer a lista de documentos: os eventos são exibidos sem os arquivos." %}
+{% endif %}
+
+{# ---------- Capa do processo ---------- #}
+<section class="bg-white border border-base-200 mb-4 rounded-default shadow-xs dark:bg-base-900 dark:border-base-800">
+    <div class="flex gap-3 items-center justify-between px-4 py-3">
+        <span class="text-subtle text-xs">Consultado às {{ consultado_em|time:"H:i" }}</span>
+        {{ botao_atualizar }}
+    </div>
+    <dl class="border-t border-base-200 gap-4 grid px-4 py-4 md:grid-cols-3 lg:grid-cols-5 dark:border-base-800">
+        <div class="min-w-0"><dt class="text-subtle text-xs">Nº do processo</dt><dd class="font-semibold text-important">{{ p.numero_formatado }}</dd></div>
+        <div class="min-w-0"><dt class="text-subtle text-xs">Classe da ação</dt><dd class="font-semibold text-important" {% if p.classe %}title="Código {{ p.classe }}"{% endif %}>{{ p.classe_descricao|default:p.classe|default:"—" }}</dd></div>
+        <div class="min-w-0"><dt class="text-subtle text-xs">Competência</dt><dd class="font-semibold text-important" {% if p.competencia %}title="Código {{ p.competencia }}"{% endif %}>{{ p.competencia_descricao|default:p.competencia|default:"—" }}</dd></div>
+        <div class="min-w-0"><dt class="text-subtle text-xs">Data de autuação</dt><dd class="font-semibold text-important">{{ p.data_ajuizamento|date:"d/m/Y H:i:s"|default:"—" }}</dd></div>
+        <div class="min-w-0"><dt class="text-subtle text-xs">Situação</dt><dd class="font-semibold text-important">{{ p.situacao|default:"—" }}</dd></div>
+        <div class="min-w-0"><dt class="text-subtle text-xs">Valor da causa</dt><dd class="font-semibold text-important">{% if p.valor_causa is not None %}R$ {{ p.valor_causa|floatformat:"2g" }}{% else %}—{% endif %}</dd></div>
+        {% if p.outros_numeros %}
+            <div class="min-w-0"><dt class="text-subtle text-xs">Outros números</dt><dd class="break-words font-semibold text-important">{{ p.outros_numeros|join:"; " }}</dd></div>
+        {% endif %}
+        <div class="min-w-0 md:col-span-2"><dt class="text-subtle text-xs">Órgão julgador</dt><dd class="font-semibold text-important">{{ p.orgao_julgador|default:"—" }}</dd></div>
+        {% if p.prioridades_descricao %}
+            <div class="min-w-0"><dt class="text-subtle text-xs">Prioridade</dt><dd class="flex flex-wrap gap-1">{% for pr in p.prioridades_descricao %}{% include "unfold/helpers/label.html" with text=pr type="info" href="" %}{% endfor %}</dd></div>
+        {% endif %}
+        {% if p.nivel_sigilo %}
+            {% with nivel=p.nivel_sigilo|stringformat:"d" %}
+            <div class="min-w-0"><dt class="text-subtle text-xs">Sigilo</dt><dd>{% include "unfold/helpers/label.html" with text="nível "|add:nivel type="warning" href="" %}</dd></div>
+            {% endwith %}
+        {% endif %}
+    </dl>
+</section>
+
+{# ---------- Assuntos ---------- #}
+{% capture as conteudo_assuntos silent %}
+    <ul class="flex flex-col gap-1 px-4 py-3">
+        {% for assunto in p.assuntos %}<li class="text-important">{{ assunto }}</li>{% empty %}<li class="text-subtle">Nenhum assunto informado.</li>{% endfor %}
+    </ul>
+{% endcapture %}
+{% include "judicial/processos/_secao.html" with titulo="Assuntos" contador=p.assuntos|length aberta=False conteudo=conteudo_assuntos %}
+
+{# ---------- Partes e representantes ---------- #}
+{% capture as conteudo_partes silent %}
+    {% if p.polos_principais %}
+        <div class="grid md:grid-cols-2">
+            {% for polo in p.polos_principais %}
+                <div class="min-w-0 {% if not forloop.first %}border-t border-base-200 md:border-l md:border-t-0 dark:border-base-800{% endif %}">
+                    <div class="bg-base-50 border-b border-base-200 font-semibold px-4 py-2 text-center text-important uppercase dark:bg-white/[.02] dark:border-base-800">{{ polo.nome }}</div>
+                    <div class="flex flex-col gap-3 px-4 py-3">
+                        {% for parte in polo.partes %}{% include "judicial/processos/_parte.html" %}{% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    {% for polo in p.outros_polos %}
+        <div class="{% if p.polos_principais or not forloop.first %}border-t border-base-200 dark:border-base-800{% endif %}">
+            <div class="bg-base-50 border-b border-base-200 font-semibold px-4 py-2 text-center text-important uppercase dark:bg-white/[.02] dark:border-base-800">{{ polo.nome }}</div>
+            <div class="flex flex-col gap-3 items-center px-4 py-3">
+                {% for parte in polo.partes %}{% include "judicial/processos/_parte.html" %}{% endfor %}
+            </div>
+        </div>
+    {% endfor %}
+    {% if not p.polos %}<p class="px-4 py-3 text-subtle">O tribunal não informou as partes.</p>{% endif %}
+{% endcapture %}
+{% include "judicial/processos/_secao.html" with titulo="Partes e representantes" contador=None aberta=True conteudo=conteudo_partes %}
+
+{# ---------- Informações adicionais (parâmetros extras enviados pelo tribunal) ---------- #}
+{% if p.informacoes_adicionais %}
+    {% capture as conteudo_info silent %}
+        <dl class="gap-4 grid px-4 py-3 md:grid-cols-3">
+            {% for nome, valor in p.informacoes_adicionais %}
+                <div class="min-w-0"><dt class="text-subtle text-xs">{{ nome }}</dt><dd class="break-words font-medium text-important">{{ valor|default:"—" }}</dd></div>
+            {% endfor %}
+        </dl>
+    {% endcapture %}
+    {% include "judicial/processos/_secao.html" with titulo="Informações adicionais" contador=p.informacoes_adicionais|length aberta=False conteudo=conteudo_info %}
+{% endif %}
+
+{# ---------- Eventos ---------- #}
+{% with total=p.movimentos|length %}
+<section class="bg-white border border-base-200 overflow-hidden rounded-default shadow-xs dark:bg-base-900 dark:border-base-800"
+         x-data="{ busca: '' }">
+    <div class="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center justify-between">
+        <h2 class="font-semibold text-base text-important">Eventos <span class="font-normal text-subtle text-sm">({{ total }})</span></h2>
+        <div class="flex items-center max-w-sm min-w-0 relative w-full">
+            <span class="absolute left-3 material-symbols-outlined pointer-events-none text-subtle">search</span>
+            <input type="search" x-model="busca" placeholder="Pesquisar nos eventos" aria-label="Pesquisar nos eventos"
+                   class="{{ classes_input_base }} pl-9 pr-3 py-2 w-full">
+        </div>
+    </div>
+    {% if total %}
+        <div class="overflow-x-auto">
+            <table class="border-separate border-spacing-none w-full">
+                <thead class="text-important">
+                    <tr class="bg-base-50 dark:bg-base-900">
+                        <th class="border-b border-t border-base-200 font-semibold px-4 py-2 text-left whitespace-nowrap dark:border-base-800">Evento</th>
+                        <th class="border-b border-t border-base-200 font-semibold px-3 py-2 text-left whitespace-nowrap dark:border-base-800">Data/Hora</th>
+                        <th class="border-b border-t border-base-200 font-semibold px-3 py-2 text-left dark:border-base-800">Descrição</th>
+                        <th class="border-b border-t border-base-200 font-semibold px-4 py-2 text-left whitespace-nowrap dark:border-base-800">Documentos</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mov in p.movimentos %}
+                        <tr class="{% cycle '' 'bg-base-50 dark:bg-white/[.02]' %}"
+                            x-show="!busca || $el.textContent.toLowerCase().includes(busca.toLowerCase())">
+                            <td class="align-top border-b border-base-200 font-semibold px-4 py-2 text-important dark:border-base-800">{{ mov.numero }}</td>
+                            <td class="align-top border-b border-base-200 px-3 py-2 whitespace-nowrap dark:border-base-800">{{ mov.data_hora|date:"d/m/Y H:i:s"|default:"—" }}</td>
+                            <td class="align-top border-b border-base-200 px-3 py-2 dark:border-base-800">
+                                <span class="font-semibold text-primary-600 dark:text-primary-500">{{ mov.descricao }}</span>
+                                {% for c in mov.complementos %}<div class="text-important text-xs">{{ c }}</div>{% endfor %}
+                            </td>
+                            <td class="align-top border-b border-base-200 px-4 py-2 whitespace-nowrap dark:border-base-800">
+                                {% if mov.documentos %}
+                                    <ul class="flex flex-col gap-1">
+                                        {% for doc in mov.documentos %}
+                                            <li>
+                                                <a href="{% url 'sistemas:documento' sistema.pk ambiente.pk numero doc.id %}?nome={{ doc.nome|urlencode }}" target="_blank" rel="noopener"
+                                                   class="flex gap-1 items-center text-primary-600 hover:text-primary-700 dark:text-primary-500"
+                                                   title="Abrir {{ doc.descricao|default:doc.nome }}{% if doc.data_hora %} · {{ doc.data_hora|date:'d/m/Y H:i' }}{% endif %}{% if doc.tamanho_formatado %} · {{ doc.tamanho_formatado }}{% endif %}">
+                                                    <span class="material-symbols-outlined text-sm">{% if doc.mimetype == 'application/pdf' %}picture_as_pdf{% else %}description{% endif %}</span>{{ doc.nome }}
+                                                    {% if doc.nivel_sigilo %}<span class="material-symbols-outlined text-sm" title="Sigiloso">lock</span>{% endif %}
+                                                </a>
+                                                {% for v in doc.vinculados %}
+                                                    <a href="{% url 'sistemas:documento' sistema.pk ambiente.pk numero v.id %}?nome={{ v.nome|urlencode }}" target="_blank" rel="noopener"
+                                                       class="flex gap-1 items-center pl-4 text-primary-600 text-xs hover:text-primary-700 dark:text-primary-500" title="Abrir {{ v.descricao|default:v.nome }}">
+                                                        <span class="material-symbols-outlined text-sm">attach_file</span>{{ v.nome }}
+                                                    </a>
+                                                {% endfor %}
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% elif mov.total_documentos %}
+                                    <span class="flex gap-1 items-center text-important"><span class="material-symbols-outlined text-sm">description</span>{{ mov.total_documentos }} documento{{ mov.total_documentos|pluralize }}</span>
+                                {% else %}
+                                    <span class="text-subtle">Evento não gerou documento</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="border-t border-base-200 px-4 py-6 text-center text-subtle dark:border-base-800">Nenhum evento informado.</p>
+    {% endif %}
+</section>
+{% endwith %}
+
+{% endwith %}
+{% endif %}

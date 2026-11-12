@@ -1,0 +1,52 @@
+{% extends "layouts/app.html" %}
+{% load unfold %}
+{% block titulo %}{{ sistema.nome }} · {{ ambiente.descricao }}{% endblock %}
+{% block content %}
+    {% include "judicial/sistemas/_trilha.html" %}
+
+    <div class="flex flex-col gap-4 mb-6 md:flex-row md:items-center justify-between">
+        <div>
+            <h1 class="flex flex-wrap font-semibold gap-2 items-center text-2xl text-important tracking-tight">
+                {{ sistema.nome }} · {{ ambiente.descricao }}
+                {% if padrao and padrao.pk == ambiente.pk %}{% include "unfold/helpers/label.html" with text="ambiente padrão" type="primary" href="" %}{% endif %}
+            </h1>
+            <p id="estado-acesso" class="mt-1 text-subtle">
+                {% if senha_ok %}Conectado como <strong class="text-important">{{ credencial.login }}</strong>{% else %}Acesso não iniciado{% endif %}
+            </p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+            {% if padrao and padrao.pk == ambiente.pk %}
+                <form method="post" action="{% url 'sistemas:remover_padrao' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    {% component "unfold/components/button.html" with submit=1 variant="default" icon="star" title="Este é o seu ambiente padrão. Clique para remover." %}Padrão · remover{% endcomponent %}
+                </form>
+            {% else %}
+                <form method="post" action="{% url 'sistemas:definir_padrao' sistema.pk ambiente.pk %}">
+                    {% csrf_token %}
+                    {% component "unfold/components/button.html" with submit=1 variant="primary" icon="star" title="Abrir este ambiente automaticamente ao entrar no Jilo" %}Definir como padrão{% endcomponent %}
+                </form>
+            {% endif %}
+            {% url 'sistemas:ambientes' sistema.pk as url_trocar %}
+            {% component "unfold/components/button.html" with href=url_trocar variant="default" icon="swap_horiz" %}Trocar ambiente{% endcomponent %}
+            {% if senha_ok %}
+                <form method="post" action="{% url 'sistemas:esquecer_senha' sistema.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'sistemas:lista' %}">
+                    {% component "unfold/components/button.html" with submit=1 variant="default" icon="lock" title="Descarta a senha deste sistema; ela será pedida no próximo acesso." %}Encerrar acesso{% endcomponent %}
+                </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if senha_ok %}
+        {% url 'sistemas:avisos' sistema.pk ambiente.pk as url_avisos %}
+        <div id="avisos" hx-get="{{ url_avisos }}" hx-trigger="load" hx-swap="innerHTML">
+            {% include "judicial/sistemas/_avisos_carregando.html" %}
+        </div>
+    {% else %}
+        <div id="avisos">
+            {% include "judicial/sistemas/_senha_necessaria.html" with titulo="Avisos pendentes" icone="notifications" texto="A consulta dos avisos pendentes começa assim que você informar a senha." voltar_para=request.path login_inicial=credencial.login %}
+        </div>
+    {% endif %}
+{% endblock %}

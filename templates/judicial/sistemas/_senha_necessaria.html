@@ -1,0 +1,15 @@
+{% load unfold %}
+{% comment %}Cartão "senha necessária" + modal aberto automaticamente. Parâmetros: titulo, icone, texto.{% endcomment %}
+<div x-data="{ aberto: true }">
+    {% component "unfold/components/card.html" with title=titulo title_icon=icone %}
+        <div class="flex flex-col gap-3 items-center py-8 text-center">
+            <span class="material-symbols-outlined text-base-300 text-6xl! dark:text-base-500">lock</span>
+            <p class="font-semibold text-important">Informe sua senha do {{ sistema.nome }}</p>
+            <p class="text-subtle">{{ texto }}</p>
+            <button type="button" x-on:click="aberto = true" class="bg-primary-600 cursor-pointer flex font-medium gap-1 items-center mt-2 px-3 py-2 rounded-default text-white hover:bg-primary-600/80">
+                <span class="material-symbols-outlined">lock_open</span> Informar senha
+            </button>
+        </div>
+    {% endcomponent %}
+    {% include "judicial/sistemas/_modal_senha.html" %}
+</div>
