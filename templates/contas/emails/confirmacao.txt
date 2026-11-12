@@ -1,6 +1,6 @@
 {% autoescape off %}Olá, {{ user.get_full_name|default:user.get_username }}.
 
-Obrigado por se cadastrar no Jilo. Para ativar sua conta, confirme seu e-mail acessando o link abaixo:
+Obrigado por se cadastrar no EloJudicial. Para ativar sua conta, confirme seu e-mail acessando o link abaixo:
 
 {{ link }}
 
@@ -8,5 +8,5 @@ O link vale por 3 dias. Seu nome de usuário é: {{ user.get_username }}
 
 Se você não fez este cadastro, ignore este e-mail.
 
-Equipe Jilo
+Equipe EloJudicial
 {% endautoescape %}

@@ -59,7 +59,7 @@ def _ambiente_ativo(sistema_pk, pk):
 def servicos(request, sistema_pk, pk):
     """Área de trabalho do ambiente. Os avisos pendentes são carregados em seguida (htmx)."""
     ambiente = _ambiente_ativo(sistema_pk, pk)
-    # O ambiente escolhido fica guardado na sessão: é ele que o Jilo usa nos serviços.
+    # O ambiente escolhido fica guardado na sessão: é ele que o EloJudicial usa nos serviços.
     request.session[SESSAO_AMBIENTE] = ambiente.pk
     return render(request, 'judicial/sistemas/servicos.html', {
         'ambiente': ambiente,
@@ -133,7 +133,7 @@ def definir_padrao(request, sistema_pk, pk):
     definir_ambiente_padrao(request.user, ambiente)
     messages.success(
         request, f'{ambiente.sistema.nome} · {ambiente.descricao} agora é o seu ambiente padrão. '
-        'Ele será aberto automaticamente quando você entrar no Jilo.'
+        'Ele será aberto automaticamente quando você entrar no EloJudicial.'
     )
     return redirect('sistemas:servicos', sistema_pk=ambiente.sistema_id, pk=ambiente.pk)
 

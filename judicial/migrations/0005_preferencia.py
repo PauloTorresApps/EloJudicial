@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('atualizado_em', models.DateTimeField(auto_now=True, verbose_name='atualizado em')),
-                ('ambiente_padrao', models.ForeignKey(blank=True, help_text='Ambiente aberto automaticamente quando o usuário entra no Jilo.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='judicial.ambiente', verbose_name='ambiente padrão')),
+                ('ambiente_padrao', models.ForeignKey(blank=True, help_text='Ambiente aberto automaticamente quando o usuário entra no EloJudicial.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='judicial.ambiente', verbose_name='ambiente padrão')),
                 ('usuario', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='preferencia_judicial', to=settings.AUTH_USER_MODEL, verbose_name='usuário')),
             ],
             options={

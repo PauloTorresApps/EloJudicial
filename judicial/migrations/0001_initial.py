@@ -40,7 +40,7 @@ class Migration(migrations.Migration):
                 ('login', models.CharField(help_text='Login usado para acessar o sistema judicial (ex.: CPF ou matrícula).', max_length=150, verbose_name='usuário no sistema')),
                 ('criado_em', models.DateTimeField(auto_now_add=True, verbose_name='criado em')),
                 ('atualizado_em', models.DateTimeField(auto_now=True, verbose_name='atualizado em')),
-                ('usuario', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='credenciais_judiciais', to=settings.AUTH_USER_MODEL, verbose_name='usuário do Jilo')),
+                ('usuario', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='credenciais_judiciais', to=settings.AUTH_USER_MODEL, verbose_name='usuário do EloJudicial')),
                 ('sistema', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='credenciais', to='judicial.sistemajudicial', verbose_name='sistema judicial')),
             ],
             options={

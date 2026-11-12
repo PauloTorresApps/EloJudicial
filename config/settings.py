@@ -171,8 +171,8 @@ LOGOUT_REDIRECT_URL = 'login'
 
 # Tema do admin (Unfold)
 UNFOLD = {
-    'SITE_TITLE': 'Jilo',
-    'SITE_HEADER': 'Jilo',
+    'SITE_TITLE': 'EloJudicial',
+    'SITE_HEADER': 'EloJudicial',
     'SITE_SUBHEADER': 'Administração',
 }
 
@@ -187,7 +187,7 @@ if sys.argv[1:2] == ['test']:
     CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 
 # Por quanto tempo (segundos) o hash da senha do sistema judicial fica em cache.
-# Depois disso, ao sair do Jilo, ou se o tribunal recusar a senha, ela é pedida de novo.
+# Depois disso, ao sair do EloJudicial, ou se o tribunal recusar a senha, ela é pedida de novo.
 MNI_SENHA_TTL = int(os.environ.get('MNI_SENHA_TTL', 2 * 60 * 60))
 
 # Logs: mensagens da integração (judicial) no console do container.
@@ -196,7 +196,7 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {'simples': {'format': '{asctime} {levelname} {name}: {message}', 'style': '{'}},
     'handlers': {'console': {'class': 'logging.StreamHandler', 'formatter': 'simples'}},
-    'loggers': {'judicial': {'handlers': ['console'], 'level': os.environ.get('JILO_LOG_NIVEL', 'INFO')}},
+    'loggers': {'judicial': {'handlers': ['console'], 'level': os.environ.get('ELOJUDICIAL_LOG_NIVEL', 'INFO')}},
 }
 
 # E-mail
@@ -213,7 +213,7 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'False').lower() in ('1', 'true', 'yes')
 EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False').lower() in ('1', 'true', 'yes')
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Jilo <nao-responda@localhost>')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'EloJudicial <nao-responda@localhost>')
 SERVER_EMAIL = os.environ.get('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

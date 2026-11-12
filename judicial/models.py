@@ -33,7 +33,7 @@ class Ambiente(models.Model):
     """Ambiente de trabalho de um sistema judicial (ex.: 1º Grau, 2º Grau).
 
     Cada ambiente aponta para a URL do serviço de integração (WSDL do MNI) que
-    será usada pelo Jilo quando o usuário trabalhar nesse ambiente.
+    será usada pelo EloJudicial quando o usuário trabalhar nesse ambiente.
     """
 
     sistema = models.ForeignKey(
@@ -71,7 +71,7 @@ class Ambiente(models.Model):
 class Credencial(models.Model):
     usuario = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-        related_name='credenciais_judiciais', verbose_name='usuário do Jilo',
+        related_name='credenciais_judiciais', verbose_name='usuário do EloJudicial',
     )
     sistema = models.ForeignKey(
         SistemaJudicial, on_delete=models.PROTECT,
@@ -109,7 +109,7 @@ class Preferencia(models.Model):
     ambiente_padrao = models.ForeignKey(
         Ambiente, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
         verbose_name='ambiente padrão',
-        help_text='Ambiente aberto automaticamente quando o usuário entra no Jilo.',
+        help_text='Ambiente aberto automaticamente quando o usuário entra no EloJudicial.',
     )
     atualizado_em = models.DateTimeField('atualizado em', auto_now=True)
 

@@ -3,9 +3,9 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-jilo}
-      POSTGRES_USER: ${POSTGRES_USER:-jilo}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jilo}
+      POSTGRES_DB: ${POSTGRES_DB:-elojudicial}
+      POSTGRES_USER: ${POSTGRES_USER:-elojudicial}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-elojudicial}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -33,9 +33,9 @@ services:
       - path: .env
         required: false
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-jilo}
-      POSTGRES_USER: ${POSTGRES_USER:-jilo}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jilo}
+      POSTGRES_DB: ${POSTGRES_DB:-elojudicial}
+      POSTGRES_USER: ${POSTGRES_USER:-elojudicial}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-elojudicial}
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
       REDIS_URL: redis://redis:6379/0

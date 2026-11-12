@@ -90,7 +90,7 @@ class DescricaoServico:
 
 
 def _baixar(url):
-    requisicao = urllib.request.Request(url, headers={'User-Agent': 'Jilo/1.0 (+integracao MNI)'})
+    requisicao = urllib.request.Request(url, headers={'User-Agent': 'EloJudicial/1.0 (+integracao MNI)'})
     try:
         with urllib.request.urlopen(requisicao, timeout=TIMEOUT) as resposta:
             conteudo = resposta.read(TAMANHO_MAXIMO + 1)

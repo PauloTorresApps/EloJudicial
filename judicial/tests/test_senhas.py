@@ -80,7 +80,7 @@ class InformarSenhaTests(Base):
 
 
 class CicloDeVidaTests(Base):
-    def test_sair_do_jilo_apaga_as_senhas(self):
+    def test_sair_do_elojudicial_apaga_as_senhas(self):
         self.informar()
         sessao = self.client.session.session_key
         self.client.post(reverse('logout'))

@@ -24,7 +24,7 @@
             {% else %}
                 <form method="post" action="{% url 'sistemas:definir_padrao' sistema.pk ambiente.pk %}">
                     {% csrf_token %}
-                    {% component "unfold/components/button.html" with submit=1 variant="primary" icon="star" title="Abrir este ambiente automaticamente ao entrar no Jilo" %}Definir como padrão{% endcomponent %}
+                    {% component "unfold/components/button.html" with submit=1 variant="primary" icon="star" title="Abrir este ambiente automaticamente ao entrar no EloJudicial" %}Definir como padrão{% endcomponent %}
                 </form>
             {% endif %}
             {% url 'sistemas:ambientes' sistema.pk as url_trocar %}

@@ -56,7 +56,7 @@ class CadastroTests(TestCase):
         self.assertNotIn('_auth_user_id', self.client.session)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ['joao@exemplo.com'])
-        self.assertEqual(mail.outbox[0].subject, 'Confirme seu cadastro - Jilo')
+        self.assertEqual(mail.outbox[0].subject, 'Confirme seu cadastro - EloJudicial')
 
     def test_email_duplicado_rejeitado(self):
         get_user_model().objects.create_user('outro', email='joao@exemplo.com', password='x')
@@ -90,7 +90,7 @@ class RecuperacaoSenhaTests(TestCase):
         self.assertRedirects(resp, reverse('password_reset_done'))
         self.assertEqual(len(mail.outbox), 1)
         msg = mail.outbox[0]
-        self.assertEqual(msg.subject, 'Recuperação de senha - Jilo')
+        self.assertEqual(msg.subject, 'Recuperação de senha - EloJudicial')
         self.assertIn('Olá, Carla', msg.body)
 
         link = re.search(r'http://testserver(\S+)', msg.body).group(1)

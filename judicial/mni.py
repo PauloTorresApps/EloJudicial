@@ -357,7 +357,7 @@ def _enviar_bruto(endereco, acao, corpo, limite=TAMANHO_MAXIMO):
     requisicao = urllib.request.Request(
         endereco, data=corpo, method='POST',
         headers={'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': f'"{NS_MNI}{acao}"',
-                 'User-Agent': 'Jilo/1.0 (+integracao MNI)'},
+                 'User-Agent': 'EloJudicial/1.0 (+integracao MNI)'},
     )
     tipo = ''
     try:

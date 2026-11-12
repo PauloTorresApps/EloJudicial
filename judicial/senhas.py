@@ -3,7 +3,7 @@
 A senha digitada é convertida imediatamente em sha256(senha.encode('utf-8')).hexdigest();
 somente esse hash é guardado, e apenas no cache (Redis em memória), vinculado à sessão
 de login do usuário e ao sistema. Ele expira após settings.MNI_SENHA_TTL, é apagado
-ao sair do Jilo e quando o tribunal recusar a autenticação.
+ao sair do EloJudicial e quando o tribunal recusar a autenticação.
 
 Atenção: para o MNI esse hash equivale à senha. Nunca registre-o em log nem o exiba.
 """
