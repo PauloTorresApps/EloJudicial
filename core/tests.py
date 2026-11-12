@@ -287,3 +287,35 @@ class EmailUnicoNoBancoTests(TestCase):
         self.assertContains(resp, 'Já existe um usuário cadastrado com este e-mail.')
         outro.refresh_from_db()
         self.assertEqual(outro.email, 'outro@exemplo.com')
+
+
+class IdentidadeVisualTests(TestCase):
+    """O tema próprio (static/elojudicial/tema.css) vale só para a área do usuário; o admin segue o padrão."""
+
+    TEMA = 'elojudicial/tema.css'
+
+    def test_paginas_publicas_usam_o_tema(self):
+        self.assertContains(self.client.get(reverse('login')), self.TEMA)
+
+    def test_area_logada_usa_o_tema_e_marca_o_item_ativo(self):
+        get_user_model().objects.create_user('ana', email='ana@exemplo.com', password='x')
+        self.client.login(username='ana', password='x')
+        resp = self.client.get(reverse('inicio'))
+        self.assertContains(resp, self.TEMA)
+        self.assertContains(resp, 'class="elo-topo')
+        self.assertContains(resp, f'href="{reverse("inicio")}" class="elo-topo-link', count=1)
+        self.assertContains(resp, 'aria-current="page"', count=1)
+
+    def test_admin_continua_com_o_tema_padrao(self):
+        get_user_model().objects.create_superuser('chefe', email='chefe@exemplo.com', password='x')
+        self.client.login(username='chefe', password='x')
+        self.assertNotContains(self.client.get('/admin/'), self.TEMA)
+
+    def test_arquivo_do_tema_redefine_as_cores(self):
+        from django.contrib.staticfiles import finders
+
+        css = open(finders.find(self.TEMA), encoding='utf-8').read()
+        self.assertIn('html:root', css)
+        for variavel in ('--color-primary-600', '--color-base-50: #f8fafc', '--color-base-800: #1e293b',
+                         '--color-green-700', '--color-orange-700', '--color-blue-700', '--color-red-700', '--elo-dourado'):
+            self.assertIn(variavel, css)

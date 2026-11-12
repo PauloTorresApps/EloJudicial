@@ -120,16 +120,11 @@ def formatar_numero_processo(n: str) -> str:
     return n
 
 
-@dataclass
-class Aviso:
-    id: str
-    tipo_codigo: str
-    numero_processo: str
-    destinatario: str = ''
-    orgao_julgador: str = ''
-    data_disponibilizacao: datetime | None = None
-    tipo_prazo: str = ''
-    prazo: int | None = None
+class DescricaoAviso:
+    """Descrições de um aviso (usadas pelo resultado da consulta e pelo aviso guardado no banco).
+
+    Requer os atributos: tipo_codigo, numero_processo, tipo_prazo, prazo.
+    """
 
     @property
     def tipo(self):
@@ -149,6 +144,19 @@ class Aviso:
             singular, plural = UNIDADES_PRAZO[self.tipo_prazo]
             return f'{self.prazo} {singular if self.prazo == 1 else plural}'
         return '—'
+
+
+@dataclass
+class Aviso(DescricaoAviso):
+    id: str
+    tipo_codigo: str
+    numero_processo: str
+    destinatario: str = ''
+    orgao_julgador: str = ''
+    data_disponibilizacao: datetime | None = None
+    tipo_prazo: str = ''
+    prazo: int | None = None
+    xml: str = ''  # elemento <avisos> original, com todos os campos enviados pelo tribunal
 
 
 @dataclass
@@ -462,6 +470,7 @@ def interpretar_avisos_pendentes(conteudo) -> ResultadoAvisos:
             data_disponibilizacao=_data(_texto(a, 'dataDisponibilizacao')),
             tipo_prazo=_texto(a, 'tipoPrazo'),
             prazo=int(prazo) if prazo.isdigit() else None,
+            xml=tostring(a, encoding='unicode'),
         ))
     avisos.sort(key=lambda av: _ordem_data(av.data_disponibilizacao), reverse=True)
     return ResultadoAvisos(sucesso=sucesso, mensagens=mensagens, avisos=avisos)
@@ -726,9 +735,15 @@ def endereco_servico(ambiente):
     return endereco
 
 
-def consultar_avisos_pendentes(ambiente, login, senha) -> ResultadoAvisos:
+def consultar_avisos_pendentes(ambiente, login, senha, ao_receber=None) -> ResultadoAvisos:
+    """ATENÇÃO: o tribunal entrega cada aviso pendente uma única vez — depois desta consulta
+    ele não volta mais. Por isso ao_receber(conteudo) recebe a resposta bruta ANTES de ela
+    ser interpretada, para que seja guardada mesmo que a interpretação falhe.
+    """
     corpo = _envelope_avisos_pendentes(login, senha)
     conteudo = _enviar(endereco_servico(ambiente), 'consultarAvisosPendentes', corpo)
+    if ao_receber is not None:
+        ao_receber(conteudo)
     return interpretar_avisos_pendentes(conteudo)
 
 

@@ -1,6 +1,10 @@
 {% extends "layouts/app.html" %}
-{% load unfold %}
+{% load static unfold %}
 {% block titulo %}Processo {{ numero_formatado }}{% endblock %}
+{% block extrahead %}
+    {{ block.super }}
+    <script src="{% static 'judicial/eventos.js' %}"></script>
+{% endblock %}
 {% block content %}
     <nav class="flex flex-row flex-wrap gap-2 items-center mb-4 text-subtle">
         <a href="{% url 'sistemas:lista' %}" class="hover:text-primary-600 dark:hover:text-primary-500">Sistemas</a>

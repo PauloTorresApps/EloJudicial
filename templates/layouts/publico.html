@@ -1,10 +1,15 @@
 {% extends 'unfold/layouts/skeleton.html' %}
-{% load unfold %}
+{% load static unfold %}
 {% comment %}Layout das páginas sem login (entrar, cadastro, recuperação de senha), no mesmo padrão da tela de login do Unfold.{% endcomment %}
 
 {% block title %}{% block titulo %}{% endblock %} | {{ site_title }}{% endblock %}
 
 {% block bodyclass %}{{ block.super }}bg-base-50 login dark:bg-base-900{% endblock %}
+
+{% block extrastyle %}
+    {{ block.super }}
+    <link href="{% static 'elojudicial/tema.css' %}" rel="stylesheet">
+{% endblock %}
 
 {% block base %}
     <div id="page" class="bg-white flex min-h-screen dark:bg-base-900">
@@ -13,7 +18,7 @@
                 <div class="border-b border-base-200 mb-8 pb-6 dark:border-base-800">
                     <h1 class="font-semibold">
                         <span class="block text-font-important-light dark:text-font-important-dark">{% block subtitulo %}{% endblock %}</span>
-                        <span class="block font-semibold text-primary-600 tracking-tight text-xl dark:text-primary-500">{% block cabecalho %}{{ site_header }}{% endblock %}</span>
+                        <span class="flex font-semibold gap-2 items-center text-primary-600 tracking-tight text-xl dark:text-primary-400"><span class="elo-selo material-symbols-outlined">account_balance</span>{% block cabecalho %}{{ site_header }}{% endblock %}</span>
                     </h1>
                 </div>
 

@@ -359,3 +359,76 @@ class CompetenciasTests(Base):
         self.assertContains(resp, NUMERO_FORMATADO)
         self.assertContains(resp, 'title="Código 14">14<', html=False)
         self.assertNotContains(resp, 'Não foi possível conectar')
+
+
+class PaginacaoEventosTests(Base):
+    """A tabela de eventos é paginada no navegador (judicial/eventos.js): padrão 35 por página."""
+
+    def dados_com_eventos(self, quantidade):
+        resultado = mni.interpretar_processo(RESPOSTA_PROCESSO)
+        base = resultado.processo.movimentos[0]
+        resultado.processo.movimentos = [
+            mni.Movimento(data_hora=base.data_hora, descricao=f'Evento de teste {n}', numero=n)
+            for n in range(quantidade, 0, -1)
+        ]
+        self.informar_senha()
+        with mock.patch.object(mni, 'consultar_processo', return_value=resultado), \
+                mock.patch.object(mni, 'descrever_competencia'):
+            return self.client.get(self.url_dados(self.amb1))
+
+    def test_seletor_com_as_opcoes_e_35_por_padrao(self):
+        resp = self.dados_com_eventos(120)
+        self.assertContains(resp, 'x-data="eventosPaginados()"')
+        self.assertContains(resp, 'x-model.number="porPagina"')
+        for valor, rotulo in ((10, '10'), (25, '25'), (50, '50'), (100, '100'), (0, 'Tudo')):
+            self.assertContains(resp, f'<option value="{valor}">{rotulo}</option>', html=False)
+        self.assertContains(resp, '<option value="35" selected>35</option>')
+
+    def test_todos_os_eventos_vem_numa_unica_consulta(self):
+        # A paginação só esconde linhas: trocar de página nunca consulta o tribunal de novo.
+        resp = self.dados_com_eventos(120)
+        self.assertContains(resp, 'Evento de teste ', count=120)
+        self.assertContains(resp, 'Primeira página')
+        self.assertContains(resp, 'Última página')
+
+    def test_poucos_eventos_nao_mostram_o_seletor(self):
+        resp = self.dados_com_eventos(10)
+        self.assertNotContains(resp, 'x-model.number="porPagina"')
+
+    def test_pagina_do_processo_carrega_o_script(self):
+        self.informar_senha()
+        self.assertContains(self.client.get(self.url_processo(self.amb1)), 'judicial/eventos.js')
+
+
+class CapaDoProcessoTests(Base):
+    def dados(self, processo_sem_prioridade=False):
+        resultado = mni.interpretar_processo(RESPOSTA_PROCESSO)
+        if processo_sem_prioridade:
+            resultado.processo.prioridades_tribunal = []
+            resultado.processo.prioridades = []
+        self.informar_senha()
+        with mock.patch.object(mni, 'consultar_processo', return_value=resultado), \
+                mock.patch.object(mni, 'descrever_competencia'):
+            return self.client.get(self.url_dados(self.amb1))
+
+    def cabecalho(self, resp):
+        html = resp.content.decode()
+        inicio = html.index('<section')  # 1º card: capa do processo
+        return html[inicio:html.index('<dl', inicio)]
+
+    def test_prioridades_no_cabecalho_sem_o_rotulo(self):
+        resp = self.dados()
+        cabecalho = self.cabecalho(resp)
+        self.assertIn('Idoso', cabecalho)
+        self.assertIn('Cível', cabecalho)
+        self.assertNotContains(resp, '>Prioridade<')
+
+    def test_cabecalho_sem_horario_da_consulta(self):
+        resp = self.dados()
+        self.assertNotContains(resp, 'Consultado às')
+        self.assertIn('Atualizar', self.cabecalho(resp))
+
+    def test_sem_prioridade_o_cabecalho_fica_so_com_o_botao(self):
+        cabecalho = self.cabecalho(self.dados(processo_sem_prioridade=True))
+        self.assertNotIn('Idoso', cabecalho)
+        self.assertIn('Atualizar', cabecalho)

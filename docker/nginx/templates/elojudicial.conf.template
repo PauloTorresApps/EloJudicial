@@ -39,6 +39,9 @@ server {
     client_max_body_size 20m;
 
     location / {
+        # Se o usuário sair da página no meio de uma consulta ao tribunal, o sistema
+        # termina e grava a resposta mesmo assim (ex.: avisos pendentes, entregues uma única vez).
+        proxy_ignore_client_abort on;
         proxy_pass http://elojudicial_web;
         proxy_set_header Host              $host;
         proxy_set_header X-Real-IP         $remote_addr;

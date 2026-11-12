@@ -10,7 +10,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from judicial import mni, wsdl
-from judicial.models import Credencial, SistemaJudicial
+from judicial.models import AvisoPendente, ConsultaAvisos, Credencial, SistemaJudicial
 
 DADOS = Path(__file__).parent / 'dados'
 RESPOSTA_OK = (DADOS / 'avisos_resposta.xml').read_bytes()
@@ -186,3 +186,178 @@ class TelaAvisosTests(TestCase):
         self.assertContains(resp, 'hx-trigger="load"')
         self.assertContains(resp, 'Consultando avisos pendentes')
         self.assertContains(resp, 'Conectado como')
+
+
+class RegistroAvisosTests(TestCase):
+    """O tribunal entrega cada aviso pendente uma única vez: tudo o que chega fica guardado."""
+
+    SENHA = 'S3nh@'
+    NUMERO_1 = '0001234-14.2024.8.27.2729'
+    ROTULO_NOVO = 'novo\n</span>'
+
+    def setUp(self):
+        cache.clear()
+        p = mock.patch.object(wsdl, '_baixar', return_value=WSDL)
+        p.start()
+        self.addCleanup(p.stop)
+        self.user = get_user_model().objects.create_user('ana', email='ana@exemplo.com', password='x')
+        self.client.force_login(self.user)
+        self.eproc = SistemaJudicial.objects.get(nome='EPROC TJTO')
+        self.amb = self.eproc.ambientes.order_by('ordem').first()
+        self.url = reverse('sistemas:avisos', args=[self.eproc.pk, self.amb.pk])
+        self.client.post(
+            reverse('sistemas:informar_senha', args=[self.eproc.pk]), {'login': '12345678900', 'senha': self.SENHA}
+        )
+
+    def consultar(self, resposta):
+        with mock.patch('urllib.request.urlopen', return_value=_Resposta(resposta)):
+            return self.client.get(self.url)
+
+    def test_grava_a_resposta_bruta_e_cada_aviso_como_pendente(self):
+        self.consultar(RESPOSTA_OK)
+        consulta = ConsultaAvisos.objects.get()
+        self.assertEqual(bytes(consulta.resposta), RESPOSTA_OK)
+        self.assertEqual((consulta.usuario, consulta.ambiente, consulta.login), (self.user, self.amb, '12345678900'))
+        self.assertEqual((consulta.sucesso, consulta.total_avisos), (True, 2))
+
+        avisos = AvisoPendente.objects.order_by('id_aviso')
+        self.assertEqual([a.id_aviso for a in avisos], ['000000000000001', '000000000000002'])
+        self.assertTrue(all(a.pendente and a.usuario == self.user and a.consulta == consulta for a in avisos))
+        primeiro = avisos[0]
+        self.assertEqual((primeiro.tipo_codigo, primeiro.numero_processo, primeiro.prazo), ('INT', '00012341420248272729', 15))
+        self.assertEqual(primeiro.orgao_julgador, '1ª Vara Cível de Palmas')
+        # O XML original guarda também o que não é exibido (ex.: classe processual).
+        self.assertIn('classeProcessual', primeiro.xml)
+        self.assertIn('000000000000001', primeiro.xml)
+
+    def test_avisos_continuam_na_tela_depois_que_o_tribunal_deixa_de_devolve_los(self):
+        resp = self.consultar(RESPOSTA_OK)
+        self.assertContains(resp, '2 avisos pendentes')
+        self.assertContains(resp, self.ROTULO_NOVO, count=2)
+
+        resp = self.consultar(RESPOSTA_SEM_AVISOS)  # o tribunal já os entregou
+        self.assertContains(resp, '2 avisos pendentes')
+        self.assertContains(resp, self.NUMERO_1)
+        self.assertNotContains(resp, self.ROTULO_NOVO)
+        self.assertNotContains(resp, 'Tudo em dia!')
+
+    def test_aviso_devolvido_de_novo_nao_e_duplicado(self):
+        self.consultar(RESPOSTA_OK)
+        self.consultar(RESPOSTA_OK)
+        self.assertEqual(ConsultaAvisos.objects.count(), 2)
+        self.assertEqual(AvisoPendente.objects.count(), 2)
+        self.assertEqual(set(AvisoPendente.objects.values_list('consulta', flat=True)), {ConsultaAvisos.objects.last().pk})
+
+    def test_resposta_que_nao_pode_ser_interpretada_fica_gravada(self):
+        resp = self.consultar(b'<resposta-quebrada')
+        self.assertContains(resp, 'resposta inválida')
+        consulta = ConsultaAvisos.objects.get()
+        self.assertEqual(bytes(consulta.resposta), b'<resposta-quebrada')
+        self.assertIsNone(consulta.sucesso)
+
+    def test_falha_de_conexao_nao_grava_nada(self):
+        with mock.patch('urllib.request.urlopen', side_effect=urllib.error.URLError('x')):
+            self.client.get(self.url)
+        self.assertFalse(ConsultaAvisos.objects.exists())
+
+    def test_erro_do_tribunal_mantem_os_avisos_guardados_na_tela(self):
+        self.consultar(RESPOSTA_OK)
+        with mock.patch('urllib.request.urlopen', side_effect=urllib.error.URLError('x')):
+            resp = self.client.get(self.url)
+        self.assertContains(resp, 'Não foi possível conectar ao tribunal')
+        self.assertContains(resp, self.NUMERO_1)
+
+    def test_aviso_que_deixou_de_ser_pendente_sai_da_lista(self):
+        self.consultar(RESPOSTA_OK)
+        AvisoPendente.objects.filter(id_aviso='000000000000001').update(pendente=False)
+        resp = self.consultar(RESPOSTA_SEM_AVISOS)
+        self.assertContains(resp, '1 aviso pendente')
+        self.assertNotContains(resp, self.NUMERO_1)
+
+    def test_sem_senha_a_pagina_mostra_os_avisos_guardados(self):
+        self.consultar(RESPOSTA_OK)
+        self.client.post(reverse('sistemas:esquecer_senha', args=[self.eproc.pk]))
+        resp = self.client.get(reverse('sistemas:servicos', args=[self.eproc.pk, self.amb.pk]))
+        self.assertContains(resp, 'Informe sua senha do EPROC TJTO')
+        self.assertContains(resp, '2 avisos pendentes')
+        self.assertContains(resp, self.NUMERO_1)
+        self.assertNotContains(resp, 'hx-trigger="load"')  # sem senha não consulta o tribunal
+
+    def test_ambiente_com_avisos_nao_pode_ser_apagado(self):
+        from django.db.models import ProtectedError
+
+        self.consultar(RESPOSTA_OK)
+        with self.assertRaises(ProtectedError):
+            self.amb.delete()
+
+    def test_excluir_o_usuario_remove_os_avisos_dele(self):
+        self.consultar(RESPOSTA_OK)
+        self.user.delete()
+        self.assertFalse(AvisoPendente.objects.exists())
+        self.assertFalse(ConsultaAvisos.objects.exists())
+
+
+class ConsultaAutomaticaUmaVezPorSessaoTests(TestCase):
+    """O consultarAvisosPendentes é disparado sozinho só na 1ª abertura do ambiente após o login."""
+
+    SENHA = 'S3nh@'
+
+    def setUp(self):
+        cache.clear()
+        p = mock.patch.object(wsdl, '_baixar', return_value=WSDL)
+        p.start()
+        self.addCleanup(p.stop)
+        self.user = get_user_model().objects.create_user('ana', email='ana@exemplo.com', password='x')
+        self.client.force_login(self.user)
+        self.eproc = SistemaJudicial.objects.get(nome='EPROC TJTO')
+        self.amb1, self.amb2 = self.eproc.ambientes.order_by('ordem')[:2]
+        self.informar_senha()
+
+    def informar_senha(self):
+        self.client.post(
+            reverse('sistemas:informar_senha', args=[self.eproc.pk]), {'login': '12345678900', 'senha': self.SENHA}
+        )
+
+    def pagina(self, ambiente):
+        return self.client.get(reverse('sistemas:servicos', args=[self.eproc.pk, ambiente.pk]))
+
+    def consultar(self, ambiente, resposta=RESPOSTA_OK):
+        with mock.patch('urllib.request.urlopen', return_value=_Resposta(resposta)):
+            return self.client.get(reverse('sistemas:avisos', args=[self.eproc.pk, ambiente.pk]))
+
+    def test_primeira_abertura_consulta_automaticamente(self):
+        self.assertContains(self.pagina(self.amb1), 'hx-trigger="load"')
+
+    def test_depois_da_consulta_mostra_os_guardados_sem_consultar_de_novo(self):
+        self.pagina(self.amb1)
+        self.consultar(self.amb1)
+        resp = self.pagina(self.amb1)
+        self.assertNotContains(resp, 'hx-trigger="load"')
+        self.assertContains(resp, '2 avisos pendentes')
+        self.assertContains(resp, 'última consulta em')
+        self.assertContains(resp, 'Consultar novos avisos')
+
+    def test_botao_continua_consultando_o_tribunal(self):
+        self.consultar(self.amb1)
+        with mock.patch('urllib.request.urlopen', return_value=_Resposta(RESPOSTA_SEM_AVISOS)) as urlopen:
+            self.client.get(reverse('sistemas:avisos', args=[self.eproc.pk, self.amb1.pk]))
+        urlopen.assert_called_once()
+
+    def test_cada_ambiente_tem_a_sua_primeira_consulta(self):
+        self.consultar(self.amb1)
+        self.assertContains(self.pagina(self.amb2), 'hx-trigger="load"')
+
+    def test_novo_login_volta_a_consultar_automaticamente(self):
+        self.consultar(self.amb1)
+        self.client.logout()
+        self.client.force_login(self.user)
+        self.informar_senha()
+        self.assertContains(self.pagina(self.amb1), 'hx-trigger="load"')
+
+    def test_sem_senha_nao_conta_como_consultado(self):
+        self.client.post(reverse('sistemas:esquecer_senha', args=[self.eproc.pk]))
+        with mock.patch('urllib.request.urlopen') as urlopen:
+            self.client.get(reverse('sistemas:avisos', args=[self.eproc.pk, self.amb1.pk]))
+        urlopen.assert_not_called()
+        self.informar_senha()
+        self.assertContains(self.pagina(self.amb1), 'hx-trigger="load"')

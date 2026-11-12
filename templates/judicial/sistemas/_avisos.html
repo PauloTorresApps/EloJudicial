@@ -1,38 +1,46 @@
 {% load unfold %}
+{% comment %}
+Avisos pendentes do usuário neste ambiente.
+A lista vem do banco (avisos guardados), não só da última consulta: o tribunal entrega
+cada aviso uma única vez, então o que já chegou continua aqui até ser tratado.
+Contexto: avisos, novos (pks recebidos agora), resultado, erro, falha, pedir_senha, erro_senha, consultado_em, ultima_consulta.
+{% endcomment %}
 {% url 'sistemas:avisos' sistema.pk ambiente.pk as url_avisos %}
 {% capture as botao_atualizar silent %}
+    {% if not pedir_senha %}
     <button type="button" class="border border-base-200 cursor-pointer flex font-medium gap-1 items-center px-3 py-2 rounded-default shadow-xs text-important hover:bg-base-100/80 dark:border-base-700 dark:hover:bg-base-800/80"
             hx-get="{{ url_avisos }}" hx-target="#avisos" hx-swap="innerHTML" hx-disabled-elt="this" x-data="{ carregando: false }" x-on:htmx:before-request="carregando = true">
-        <span class="material-symbols-outlined" x-data x-bind:class="{ 'animate-spin': carregando }">refresh</span> Atualizar
+        <span class="material-symbols-outlined" x-data x-bind:class="{ 'animate-spin': carregando }">refresh</span> Consultar novos avisos
     </button>
+    {% endif %}
 {% endcapture %}
 
+<div class="flex flex-col gap-6">
 {% if pedir_senha %}
-    {% include "judicial/sistemas/_senha_necessaria.html" with titulo="Avisos pendentes" icone="notifications" texto="A consulta dos avisos pendentes começa assim que você informar a senha." login_inicial=credencial.login %}
+    {% include "judicial/sistemas/_senha_necessaria.html" with titulo="Consultar novos avisos" icone="notifications" texto="A consulta de novos avisos pendentes começa assim que você informar a senha." login_inicial=credencial.login %}
     {% if erro_senha %}<p id="estado-acesso" hx-swap-oob="true" class="mt-1 text-subtle">Senha recusada pelo tribunal</p>{% endif %}
+{% endif %}
 
-{% elif erro %}
-    {% component "unfold/components/card.html" with title="Avisos pendentes" title_icon="notifications" action=botao_atualizar %}
-        {% include "unfold/helpers/messages/error.html" with message=erro %}
-    {% endcomponent %}
-
-{% elif not resultado.sucesso %}
-    {% component "unfold/components/card.html" with title="Avisos pendentes" title_icon="notifications" action=botao_atualizar %}
-        <p class="font-semibold mb-2 text-important">O tribunal não realizou a consulta:</p>
-        {% for msg in resultado.mensagens %}
-            {% include "unfold/helpers/messages/error.html" with message=msg %}
-        {% empty %}
-            {% include "unfold/helpers/messages/error.html" with message="Nenhum motivo foi informado." %}
-        {% endfor %}
-        <p class="mt-2 text-subtle">Tente novamente em instantes. Se o problema persistir, avise o administrador.</p>
-    {% endcomponent %}
-
-{% else %}
-    {% with total=resultado.avisos|length %}
-    {% capture as descricao silent %}{% if total %}{{ total }} aviso{{ total|pluralize }} pendente{{ total|pluralize }}{% else %}Nenhum aviso pendente{% endif %} · consultado às {{ consultado_em|time:"H:i" }}{% endcapture %}
+{% if not pedir_senha or avisos %}
+    {% with total=avisos|length %}
+    {% capture as descricao silent %}{% if total %}{{ total }} aviso{{ total|pluralize }} pendente{{ total|pluralize }}{% else %}Nenhum aviso pendente{% endif %}{% if consultado_em %} · consultado às {{ consultado_em|time:"H:i" }}{% elif ultima_consulta %} · última consulta em {{ ultima_consulta|date:"d/m/Y H:i" }}{% endif %}{% endcapture %}
     {% component "unfold/components/card.html" with title="Avisos pendentes" title_icon="notifications" description=descricao action=botao_atualizar %}
+        {% if erro %}
+            <div class="mb-4">{% include "unfold/helpers/messages/error.html" with message=erro %}</div>
+        {% elif resultado and not resultado.sucesso and not pedir_senha %}
+            <div class="mb-4">
+                <p class="font-semibold mb-2 text-important">O tribunal não realizou a consulta:</p>
+                {% for msg in resultado.mensagens %}
+                    {% include "unfold/helpers/messages/error.html" with message=msg %}
+                {% empty %}
+                    {% include "unfold/helpers/messages/error.html" with message="Nenhum motivo foi informado." %}
+                {% endfor %}
+                <p class="mt-2 text-subtle">Tente novamente em instantes. Se o problema persistir, avise o administrador.</p>
+            </div>
+        {% endif %}
+
         {% if total %}
-            <div class="-mb-6 -mt-6 -mx-6 overflow-x-auto">
+            <div class="-mb-6 -mx-6 overflow-x-auto {% if not falha %}-mt-6{% endif %}">
                 <table class="border-separate border-spacing-none w-full">
                     <thead class="text-important">
                         <tr class="bg-base-50 dark:bg-base-900">
@@ -42,12 +50,17 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for aviso in resultado.avisos %}
+                        {% for aviso in avisos %}
                             <tr>
                                 <td class="align-top border-base-200 px-6 py-3 dark:border-base-800 {% if not forloop.first %}border-t{% endif %}">
-                                    <div class="mb-1">{% include "unfold/helpers/label.html" with text=aviso.tipo type="primary" href="" %}</div>
-                                    <a href="{% url 'sistemas:processo' sistema.pk ambiente.pk aviso.numero_processo %}" title="Consultar o processo"
-                                       class="font-semibold text-primary-600 whitespace-nowrap hover:text-primary-700 dark:text-primary-500">{{ aviso.numero_processo_formatado }}</a>
+                                    <div class="flex gap-1 mb-1">
+                                        {% include "unfold/helpers/label.html" with text=aviso.tipo type="primary" href="" %}
+                                        {% if aviso.pk in novos %}{% include "unfold/helpers/label.html" with text="novo" type="success" href="" %}{% endif %}
+                                    </div>
+                                    {% if aviso.numero_processo %}
+                                        <a href="{% url 'sistemas:processo' sistema.pk ambiente.pk aviso.numero_processo %}" title="Consultar o processo"
+                                           class="font-semibold text-primary-600 whitespace-nowrap hover:text-primary-700 dark:text-primary-500">{{ aviso.numero_processo_formatado }}</a>
+                                    {% endif %}
                                 </td>
                                 <td class="align-top border-base-200 px-3 py-3 dark:border-base-800 {% if not forloop.first %}border-t{% endif %}">
                                     <div class="font-medium text-important">{{ aviso.destinatario|default:"—" }}</div>
@@ -62,7 +75,7 @@
                     </tbody>
                 </table>
             </div>
-        {% else %}
+        {% elif not falha %}
             <div class="flex flex-col gap-2 items-center py-8 text-center">
                 <span class="material-symbols-outlined text-green-700 text-6xl! dark:text-green-400">task_alt</span>
                 <p class="font-semibold text-important">Tudo em dia!</p>
@@ -72,3 +85,4 @@
     {% endcomponent %}
     {% endwith %}
 {% endif %}
+</div>

@@ -39,14 +39,20 @@
         </div>
     </div>
 
-    {% if senha_ok %}
+    {% if senha_ok and consultar_avisos_agora %}
+        {# Primeira abertura do ambiente nesta sessão: consulta o tribunal automaticamente. #}
         {% url 'sistemas:avisos' sistema.pk ambiente.pk as url_avisos %}
         <div id="avisos" hx-get="{{ url_avisos }}" hx-trigger="load" hx-swap="innerHTML">
             {% include "judicial/sistemas/_avisos_carregando.html" %}
         </div>
+    {% elif senha_ok %}
+        {# Já consultado nesta sessão: mostra os avisos guardados; nova consulta só pelo botão. #}
+        <div id="avisos">
+            {% include "judicial/sistemas/_avisos.html" %}
+        </div>
     {% else %}
         <div id="avisos">
-            {% include "judicial/sistemas/_senha_necessaria.html" with titulo="Avisos pendentes" icone="notifications" texto="A consulta dos avisos pendentes começa assim que você informar a senha." voltar_para=request.path login_inicial=credencial.login %}
+            {% include "judicial/sistemas/_avisos.html" with pedir_senha=True voltar_para=request.path %}
         </div>
     {% endif %}
 {% endblock %}

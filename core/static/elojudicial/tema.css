@@ -1,0 +1,168 @@
+/*
+ * EloJudicial — identidade visual da área do usuário (fora do /admin).
+ *
+ * Referência: guia "Recomendações de Cores para Sistemas Judiciais" —
+ * base neutra e clara, azul-marinho institucional, ardósia como apoio,
+ * dourado fosco só no selo da marca e cores semânticas sóbrias.
+ *
+ * Como funciona: o CSS do Unfold (Tailwind v4) usa variáveis CSS para todas as cores.
+ * Aqui elas são redefinidas, e este arquivo é carregado apenas nos layouts da área do
+ * usuário (templates/layouts/app.html e publico.html); o admin continua com o tema padrão.
+ * "html:root" tem precedência sobre o ":root" que o Unfold injeta no <body>.
+ *
+ * Contraste conferido (WCAG AA, mínimo 4.5:1 para texto) nos modos claro e escuro.
+ */
+
+html:root {
+    /* Azul-marinho institucional (cor primária): cabeçalho, links e ações principais. */
+    --color-primary-50: #f0f6fd;
+    --color-primary-100: #deeaf9;
+    --color-primary-200: #c0d6f1;
+    --color-primary-300: #9fc1ec;
+    --color-primary-400: #82aee6;
+    --color-primary-500: #6595d1;
+    --color-primary-600: #315c92;
+    --color-primary-700: #244a78;
+    --color-primary-800: #1c3b62;
+    --color-primary-900: #162e4d;
+    --color-primary-950: #0c1d33;
+
+    /* Ardósia (cor secundária): fundo gelo #F8FAFC, estrutura, texto #1E293B. */
+    --color-base-50: #f8fafc;
+    --color-base-100: #f1f5f9;
+    --color-base-200: #e2e8f0;
+    --color-base-300: #cbd5e1;
+    --color-base-400: #94a3b8;
+    --color-base-500: #64748b;
+    --color-base-600: #475569;
+    --color-base-700: #334155;
+    --color-base-800: #1e293b;
+    --color-base-900: #0f172a;
+    --color-base-950: #020617;
+
+    /* Texto: grafite para leitura longa, sem preto absoluto. */
+    --color-font-subtle-light: var(--color-base-500);
+    --color-font-default-light: var(--color-base-700);
+    --color-font-important-light: var(--color-base-800);
+    --color-font-subtle-dark: var(--color-base-400);
+    --color-font-default-dark: var(--color-base-300);
+    --color-font-important-dark: var(--color-base-100);
+
+    /* Sucesso / concluído: verde esmeralda. */
+    --color-green-50: #ecfdf5;
+    --color-green-100: #d1fae5;
+    --color-green-200: #a7f3d0;
+    --color-green-300: #6ee7b7;
+    --color-green-400: #34d399;
+    --color-green-500: #10b981;
+    --color-green-600: #059669;
+    --color-green-700: #047857;
+    --color-green-800: #065f46;
+    --color-green-900: #064e3b;
+    --color-green-950: #022c22;
+
+    /* Alerta / prazo próximo: âmbar (o Unfold usa "orange" para avisos). */
+    --color-orange-50: #fffbeb;
+    --color-orange-100: #fef3c7;
+    --color-orange-200: #fde68a;
+    --color-orange-300: #fcd34d;
+    --color-orange-400: #fbbf24;
+    --color-orange-500: #f59e0b;
+    --color-orange-600: #d97706;
+    --color-orange-700: #b45309;
+    --color-orange-800: #92400e;
+    --color-orange-900: #78350f;
+    --color-orange-950: #451a03;
+
+    /* Informação / neutro: azul celeste (o Unfold usa "blue" para informações). */
+    --color-blue-50: #f0f9ff;
+    --color-blue-100: #e0f2fe;
+    --color-blue-200: #bae6fd;
+    --color-blue-300: #7dd3fc;
+    --color-blue-400: #38bdf8;
+    --color-blue-500: #0ea5e9;
+    --color-blue-600: #0284c7;
+    --color-blue-700: #0369a1;
+    --color-blue-800: #075985;
+    --color-blue-900: #0c4a6e;
+    --color-blue-950: #082f49;
+
+    /* Urgente / erro: vermelho carmesim. */
+    --color-red-50: #fef2f2;
+    --color-red-100: #ffe2e1;
+    --color-red-200: #ffcac8;
+    --color-red-300: #ffa3a3;
+    --color-red-400: #fb6870;
+    --color-red-500: #f23d52;
+    --color-red-600: #d5183b;
+    --color-red-700: #b30f2f;
+    --color-red-800: #941328;
+    --color-red-900: #7a1a25;
+    --color-red-950: #430a11;
+
+    /* Destaque institucional: dourado fosco, só no selo da marca. */
+    --elo-dourado: #93753b;
+    --elo-dourado-sobre-marinho: #d3b36e;
+    --elo-topo-fundo: var(--color-primary-900);
+    --elo-topo-borda: var(--color-primary-950);
+}
+
+/* Modo escuro: azul-noite. */
+html.dark:root {
+    --elo-dourado: #d3b36e;
+    --elo-topo-fundo: var(--color-primary-950);
+    --elo-topo-borda: var(--color-base-800);
+}
+
+/* ---------- Selo da marca ---------- */
+.elo-selo {
+    color: var(--elo-dourado);
+}
+
+/* ---------- Cabeçalho (barra superior em azul-marinho) ---------- */
+.elo-topo {
+    background-color: var(--elo-topo-fundo);
+    border-bottom-color: var(--elo-topo-borda);
+    color: var(--color-base-200);
+}
+
+.elo-topo .elo-selo {
+    color: var(--elo-dourado-sobre-marinho);
+}
+
+.elo-topo .elo-marca {
+    color: #fff;
+}
+
+.elo-topo-link,
+.elo-topo-tema > div > a,
+.elo-topo-usuario .elo-topo-nome,
+.elo-topo-usuario .elo-topo-icone {
+    color: var(--color-base-200);
+}
+
+.elo-topo-link:hover,
+.elo-topo-link:focus-visible,
+.elo-topo-usuario:hover,
+.elo-topo-usuario.is-aberto {
+    background-color: rgb(255 255 255 / 0.1);
+}
+
+.elo-topo-link:hover,
+.elo-topo-tema > div > a:hover,
+.elo-topo-usuario:hover .elo-topo-nome,
+.elo-topo-usuario:hover .elo-topo-icone {
+    color: #fff;
+}
+
+/* Item ativo: texto branco e sublinhado claro (o dourado fica reservado ao selo). */
+.elo-topo-link[aria-current="page"] {
+    color: #fff;
+    background-color: rgb(255 255 255 / 0.12);
+    box-shadow: inset 0 -2px 0 rgb(255 255 255 / 0.85);
+}
+
+/* Campo de busca do cabeçalho: sem a borda clara sobre o fundo escuro. */
+.elo-topo input[type="search"] {
+    border-color: transparent;
+}

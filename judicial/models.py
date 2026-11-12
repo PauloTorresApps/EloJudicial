@@ -2,6 +2,8 @@ from django.conf import settings
 from django.db import models
 from django.db.models.functions import Lower
 
+from .mni import DescricaoAviso
+
 
 class SistemaJudicial(models.Model):
     nome = models.CharField('nome', max_length=100)
@@ -120,3 +122,74 @@ class Preferencia(models.Model):
 
     def __str__(self):
         return f'Preferências de {self.usuario}'
+
+
+class ConsultaAvisos(models.Model):
+    """Resposta bruta de cada consulta de avisos pendentes (MNI consultarAvisosPendentes).
+
+    O tribunal entrega cada aviso uma única vez; a resposta é guardada exatamente como
+    chegou, antes de ser interpretada, para que nenhuma informação se perca.
+    Pertence somente ao usuário que fez a consulta.
+    """
+
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='consultas_avisos', verbose_name='usuário',
+    )
+    ambiente = models.ForeignKey(Ambiente, on_delete=models.PROTECT, related_name='+', verbose_name='ambiente')
+    login = models.CharField('usuário no sistema', max_length=150)
+    realizada_em = models.DateTimeField('realizada em', auto_now_add=True)
+    resposta = models.BinaryField('resposta do tribunal (XML)')
+    sucesso = models.BooleanField('sucesso', null=True, help_text='Vazio: a resposta não pôde ser interpretada.')
+    mensagens = models.TextField('mensagens do tribunal', blank=True)
+    total_avisos = models.PositiveIntegerField('avisos recebidos', default=0)
+
+    class Meta:
+        verbose_name = 'consulta de avisos'
+        verbose_name_plural = 'consultas de avisos'
+        ordering = ['-realizada_em']
+
+    def __str__(self):
+        return f'Consulta de avisos #{self.pk}'
+
+
+class AvisoPendente(DescricaoAviso, models.Model):
+    """Aviso (intimação, citação…) recebido pelo consultarAvisosPendentes. Pertence só ao seu dono."""
+
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='avisos_pendentes', verbose_name='usuário',
+    )
+    ambiente = models.ForeignKey(Ambiente, on_delete=models.PROTECT, related_name='+', verbose_name='ambiente')
+    consulta = models.ForeignKey(
+        ConsultaAvisos, on_delete=models.CASCADE, related_name='avisos', verbose_name='consulta de origem',
+    )
+    login = models.CharField('usuário no sistema', max_length=150)
+    id_aviso = models.CharField('identificador do aviso', max_length=100, blank=True)
+    tipo_codigo = models.CharField('tipo de comunicação', max_length=10, blank=True)
+    numero_processo = models.CharField('número do processo', max_length=30, blank=True)
+    destinatario = models.CharField('destinatário', max_length=500, blank=True)
+    orgao_julgador = models.CharField('órgão julgador', max_length=500, blank=True)
+    data_disponibilizacao = models.DateTimeField('disponibilizado em', null=True, blank=True)
+    tipo_prazo = models.CharField('tipo de prazo', max_length=20, blank=True)
+    prazo = models.PositiveIntegerField('prazo', null=True, blank=True)
+    xml = models.TextField('XML original do aviso', blank=True)
+    pendente = models.BooleanField(
+        'pendente', default=True, db_index=True,
+        help_text='Ainda não tratado (o teor da comunicação não foi consultado).',
+    )
+    recebido_em = models.DateTimeField('recebido em', auto_now_add=True)
+    atualizado_em = models.DateTimeField('atualizado em', auto_now=True)
+
+    class Meta:
+        verbose_name = 'aviso pendente'
+        verbose_name_plural = 'avisos pendentes'
+        ordering = [models.F('data_disponibilizacao').desc(nulls_last=True), '-pk']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['usuario', 'ambiente', 'id_aviso'], condition=~models.Q(id_aviso=''),
+                name='judicial_aviso_unico_por_usuario_ambiente',
+            ),
+        ]
+
+    def __str__(self):
+        # Sem dados do aviso: o texto aparece em telas da administração (ex.: ao excluir um usuário).
+        return f'Aviso pendente #{self.pk}'

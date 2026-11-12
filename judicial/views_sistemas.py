@@ -7,11 +7,24 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods, require_POST
 
 from . import mni, senhas
+from .avisos import avisos_guardados, consultar_e_registrar, ultima_consulta
 from .forms import CredencialForm
 from .models import Ambiente, Credencial, SistemaJudicial
 from .preferencias import ambiente_padrao, definir_ambiente_padrao
 
 SESSAO_AMBIENTE = 'ambiente_id'
+# Ambientes cujos avisos pendentes já foram consultados nesta sessão de login. A consulta
+# automática acontece só na primeira abertura do ambiente; depois, apenas pelo botão.
+SESSAO_AVISOS_CONSULTADOS = 'avisos_consultados'
+
+
+def _avisos_ja_consultados(request, ambiente):
+    return ambiente.pk in request.session.get(SESSAO_AVISOS_CONSULTADOS, [])
+
+
+def _marcar_avisos_consultados(request, ambiente):
+    if not _avisos_ja_consultados(request, ambiente):
+        request.session[SESSAO_AVISOS_CONSULTADOS] = [*request.session.get(SESSAO_AVISOS_CONSULTADOS, []), ambiente.pk]
 
 
 def _destino_seguro(request, destino):
@@ -76,11 +89,16 @@ def servicos(request, sistema_pk, pk):
         'credencial': _credencial(request, ambiente.sistema),
         'senha_ok': senhas.obter(request, ambiente.sistema) is not None,
         'padrao': ambiente_padrao(request.user),
+        'avisos': avisos_guardados(request.user, ambiente),
+        'ultima_consulta': ultima_consulta(request.user, ambiente),
+        'consultar_avisos_agora': not _avisos_ja_consultados(request, ambiente),
+        'novos': set(),
     })
 
 
 def avisos_pendentes(request, sistema_pk, pk):
-    """Fragmento HTML com o resultado da consulta de avisos pendentes (MNI)."""
+    """Fragmento HTML com os avisos pendentes: consulta o tribunal (MNI), grava o que chegou
+    e mostra todos os avisos ainda pendentes guardados para o usuário."""
     ambiente = _ambiente_ativo(sistema_pk, pk)
     sistema = ambiente.sistema
     credencial = _credencial(request, sistema)
@@ -88,13 +106,17 @@ def avisos_pendentes(request, sistema_pk, pk):
     contexto = {
         'ambiente': ambiente, 'sistema': sistema, 'credencial': credencial,
         'voltar_para': reverse('sistemas:servicos', args=[sistema.pk, ambiente.pk]),
+        'novos': set(),
     }
     if credencial is None or senha_hash is None:
         contexto['pedir_senha'] = True
+        contexto['avisos'] = avisos_guardados(request.user, ambiente)
+        contexto['ultima_consulta'] = ultima_consulta(request.user, ambiente)
         return render(request, 'judicial/sistemas/_avisos.html', contexto)
 
+    _marcar_avisos_consultados(request, ambiente)
     try:
-        resultado = mni.consultar_avisos_pendentes(ambiente, credencial.login, senha_hash)
+        resultado, contexto['novos'] = consultar_e_registrar(request.user, ambiente, credencial.login, senha_hash)
     except mni.ErroMNI as exc:
         contexto['erro'] = str(exc)
     else:
@@ -104,7 +126,10 @@ def avisos_pendentes(request, sistema_pk, pk):
             contexto['pedir_senha'] = True
             contexto['erro_senha'] = ' '.join(resultado.mensagens)
         contexto['resultado'] = resultado
+    contexto['falha'] = 'erro' in contexto or not contexto['resultado'].sucesso
     contexto['consultado_em'] = timezone.localtime()
+    contexto['avisos'] = avisos_guardados(request.user, ambiente)
+    contexto['ultima_consulta'] = ultima_consulta(request.user, ambiente)
     return render(request, 'judicial/sistemas/_avisos.html', contexto)
 
 

@@ -6,7 +6,6 @@ from django.contrib import messages
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from . import mni, senhas
@@ -16,6 +15,9 @@ from .views_sistemas import SESSAO_AMBIENTE, _ambiente_ativo, _credencial
 
 
 SESSAO_BUSCA = 'busca_processo'
+# Paginação da tabela de eventos (feita no navegador; ver static/judicial/eventos.js).
+EVENTOS_POR_PAGINA = [(10, '10'), (25, '25'), (35, '35'), (50, '50'), (100, '100'), (0, 'Tudo')]
+EVENTOS_POR_PAGINA_PADRAO = 35
 
 
 def _ambiente_de_trabalho(request):
@@ -83,6 +85,8 @@ def processo_dados(request, sistema_pk, pk, numero):
         'ambiente': ambiente, 'sistema': sistema, 'credencial': credencial,
         'numero': numero, 'numero_formatado': mni.formatar_numero_processo(numero),
         'voltar_para': reverse('sistemas:processo', args=[sistema.pk, ambiente.pk, numero]),
+        'opcoes_por_pagina': EVENTOS_POR_PAGINA,
+        'por_pagina_padrao': EVENTOS_POR_PAGINA_PADRAO,
     }
     if credencial is None or senha_hash is None:
         contexto['pedir_senha'] = True
@@ -102,7 +106,6 @@ def processo_dados(request, sistema_pk, pk, numero):
             contexto['pedir_senha'] = True
             contexto['erro_senha'] = ' '.join(resultado.mensagens)
         contexto['resultado'] = resultado
-    contexto['consultado_em'] = timezone.localtime()
     return render(request, 'judicial/processos/_processo.html', contexto)
 
 

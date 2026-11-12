@@ -11,7 +11,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from judicial import mni, senhas
-from judicial.models import Credencial, Preferencia, SistemaJudicial
+from judicial.models import AvisoPendente, ConsultaAvisos, Credencial, Preferencia, SistemaJudicial
 from judicial.preferencias import definir_ambiente_padrao
 
 LOGIN_BETO = 'login-secreto-do-beto'
@@ -117,6 +117,21 @@ class IsolamentoTests(TestCase):
         resp = self.client.get(reverse('sistemas:lista'))
         self.assertNotContains(resp, '★ padrão')
 
+    def test_avisos_de_outro_usuario_nunca_aparecem(self):
+        consulta = ConsultaAvisos.objects.create(usuario=self.beto, ambiente=self.amb, login=LOGIN_BETO, resposta=b'x')
+        AvisoPendente.objects.create(
+            usuario=self.beto, ambiente=self.amb, consulta=consulta, login=LOGIN_BETO,
+            id_aviso='1', tipo_codigo='CIT', numero_processo='00099993720258272729', destinatario='DESTINATARIO DO BETO',
+        )
+        args = [self.eproc.pk, self.amb.pk]
+        for url in (reverse('sistemas:servicos', args=args), reverse('sistemas:avisos', args=args)):
+            with self.subTest(url=url):
+                resp = self.client.get(url)
+                self.assertNotContains(resp, 'DESTINATARIO DO BETO')
+                self.assertNotContains(resp, '0009999-37.2025.8.27.2729')
+        with mock.patch.object(mni, 'consultar_avisos_pendentes', side_effect=mni.ErroMNI('x')):
+            self.assertContains(self.cliente_beto.get(reverse('sistemas:avisos', args=args)), 'DESTINATARIO DO BETO')
+
     def test_paginas_de_usuario_logado_nao_ficam_em_cache(self):
         for url in self.urls_do_eproc():
             with self.subTest(url=url):
@@ -135,7 +150,8 @@ class AdministracaoNaoVeCredenciaisTests(TestCase):
         self.client.force_login(User.objects.create_superuser('chefe', email='chefe@exemplo.com', password='x'))
 
     def test_credenciais_e_preferencias_fora_do_admin(self):
-        for url in ('/admin/judicial/credencial/', '/admin/judicial/preferencia/'):
+        for url in ('/admin/judicial/credencial/', '/admin/judicial/preferencia/',
+                    '/admin/judicial/avisopendente/', '/admin/judicial/consultaavisos/'):
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 404)
         self.assertNotContains(self.client.get('/admin/'), 'Credenciais')

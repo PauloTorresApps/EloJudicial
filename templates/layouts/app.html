@@ -1,5 +1,5 @@
 {% extends 'unfold/layouts/skeleton.html' %}
-{% load unfold %}
+{% load static unfold %}
 {% comment %}Layout das páginas da área do usuário (logado), no padrão visual do Unfold.{% endcomment %}
 
 {% block title %}{% block titulo %}{% endblock %} | {{ site_title }}{% endblock %}
@@ -15,21 +15,26 @@
     </script>
 {% endblock %}
 
+{% block extrastyle %}
+    {{ block.super }}
+    <link href="{% static 'elojudicial/tema.css' %}" rel="stylesheet">
+{% endblock %}
+
 {% block base %}
     <div id="page" class="flex flex-col min-h-screen">
-        <div class="bg-white border-b border-base-200 px-4 z-40 dark:bg-base-900 dark:border-base-800">
+        <div class="elo-topo border-b px-4 z-40">
             <div class="container flex items-center h-16 mx-auto">
-                <a href="{% url 'inicio' %}" class="flex font-semibold gap-2 items-center shrink-0 text-important tracking-tight text-base">
-                    <span class="material-symbols-outlined text-primary-600 dark:text-primary-500">home</span>
+                <a href="{% url 'inicio' %}" class="elo-marca flex font-semibold gap-2 items-center shrink-0 tracking-tight text-base">
+                    <span class="elo-selo material-symbols-outlined">account_balance</span>
                     {{ site_header }}
                 </a>
 
                 {% with nome_url=request.resolver_match.view_name %}
                 <nav class="gap-1 hidden items-center ml-6 shrink-0 lg:flex">
-                    <a href="{% url 'inicio' %}" class="flex font-medium gap-2 items-center px-3 py-2 rounded-default hover:bg-base-100 dark:hover:bg-base-800 {% if nome_url == 'inicio' %}text-primary-600 dark:text-primary-500{% endif %}">
+                    <a href="{% url 'inicio' %}" class="elo-topo-link flex font-medium gap-2 items-center px-3 py-2 rounded-default" {% if nome_url == 'inicio' %}aria-current="page"{% endif %}>
                         Início
                     </a>
-                    <a href="{% url 'sistemas:lista' %}" class="flex font-medium gap-2 items-center px-3 py-2 rounded-default hover:bg-base-100 dark:hover:bg-base-800 {% if request.resolver_match.namespace == 'sistemas' %}text-primary-600 dark:text-primary-500{% endif %}">
+                    <a href="{% url 'sistemas:lista' %}" class="elo-topo-link flex font-medium gap-2 items-center px-3 py-2 rounded-default" {% if request.resolver_match.namespace == 'sistemas' %}aria-current="page"{% endif %}>
                         Sistemas
                     </a>
                 </nav>
@@ -47,17 +52,17 @@
                 </form>
 
                 <div class="flex flex-row gap-4 items-center ml-auto shrink-0">
-                    {% include "unfold/helpers/theme_switch_dropdown.html" %}
+                    <div class="elo-topo-tema">{% include "unfold/helpers/theme_switch_dropdown.html" %}</div>
 
                     <div class="relative" x-data="{ openUserLinks: false }">
-                        <button type="button" class="cursor-pointer flex flex-row gap-2 items-center rounded-default px-2 py-1 hover:bg-base-100 dark:hover:bg-base-800"
+                        <button type="button" class="elo-topo-usuario cursor-pointer flex flex-row gap-2 items-center rounded-default px-2 py-1"
                                 x-on:click="openUserLinks = !openUserLinks"
-                                x-bind:class="{'bg-base-100 dark:bg-base-800': openUserLinks}">
+                                x-bind:class="{'is-aberto': openUserLinks}">
                             {% include "unfold/helpers/avatar.html" with user=request.user size="sm" %}
-                            <span class="font-semibold hidden text-important truncate md:block">
+                            <span class="elo-topo-nome font-semibold hidden truncate md:block">
                                 {{ request.user.get_full_name|default:request.user.get_username }}
                             </span>
-                            <span class="material-symbols-outlined text-font-default-light dark:text-font-default-dark">unfold_more</span>
+                            <span class="elo-topo-icone material-symbols-outlined">unfold_more</span>
                         </button>
 
                         <nav class="absolute bg-white border border-base-200 flex flex-col leading-none py-1 right-0 rounded-default shadow-lg top-10 w-56 z-50 dark:bg-base-800 dark:border-base-700"

@@ -37,7 +37,10 @@
 {# ---------- Capa do processo ---------- #}
 <section class="bg-white border border-base-200 mb-4 rounded-default shadow-xs dark:bg-base-900 dark:border-base-800">
     <div class="flex gap-3 items-center justify-between px-4 py-3">
-        <span class="text-subtle text-xs">Consultado às {{ consultado_em|time:"H:i" }}</span>
+        {# Prioridades do processo (sem o rótulo "Prioridade"). #}
+        <div class="flex flex-wrap gap-1 min-w-0">
+            {% for pr in p.prioridades_descricao %}{% include "unfold/helpers/label.html" with text=pr type="info" href="" %}{% endfor %}
+        </div>
         {{ botao_atualizar }}
     </div>
     <dl class="border-t border-base-200 gap-4 grid px-4 py-4 md:grid-cols-3 lg:grid-cols-5 dark:border-base-800">
@@ -51,9 +54,6 @@
             <div class="min-w-0"><dt class="text-subtle text-xs">Outros números</dt><dd class="break-words font-semibold text-important">{{ p.outros_numeros|join:"; " }}</dd></div>
         {% endif %}
         <div class="min-w-0 md:col-span-2"><dt class="text-subtle text-xs">Órgão julgador</dt><dd class="font-semibold text-important">{{ p.orgao_julgador|default:"—" }}</dd></div>
-        {% if p.prioridades_descricao %}
-            <div class="min-w-0"><dt class="text-subtle text-xs">Prioridade</dt><dd class="flex flex-wrap gap-1">{% for pr in p.prioridades_descricao %}{% include "unfold/helpers/label.html" with text=pr type="info" href="" %}{% endfor %}</dd></div>
-        {% endif %}
         {% if p.nivel_sigilo %}
             {% with nivel=p.nivel_sigilo|stringformat:"d" %}
             <div class="min-w-0"><dt class="text-subtle text-xs">Sigilo</dt><dd>{% include "unfold/helpers/label.html" with text="nível "|add:nivel type="warning" href="" %}</dd></div>
@@ -110,14 +110,26 @@
 
 {# ---------- Eventos ---------- #}
 {% with total=p.movimentos|length %}
-<section class="bg-white border border-base-200 overflow-hidden rounded-default shadow-xs dark:bg-base-900 dark:border-base-800"
-         x-data="{ busca: '' }">
+{# Busca e paginação no navegador (judicial/eventos.js): trocar de página não consulta o tribunal. #}
+<section id="eventos" class="bg-white border border-base-200 overflow-hidden rounded-default shadow-xs dark:bg-base-900 dark:border-base-800"
+         x-data="eventosPaginados()">
     <div class="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center justify-between">
         <h2 class="font-semibold text-base text-important">Eventos <span class="font-normal text-subtle text-sm">({{ total }})</span></h2>
-        <div class="flex items-center max-w-sm min-w-0 relative w-full">
-            <span class="absolute left-3 material-symbols-outlined pointer-events-none text-subtle">search</span>
-            <input type="search" x-model="busca" placeholder="Pesquisar nos eventos" aria-label="Pesquisar nos eventos"
-                   class="{{ classes_input_base }} pl-9 pr-3 py-2 w-full">
+        <div class="flex flex-col gap-3 min-w-0 sm:flex-row sm:items-center">
+            {% if total > 10 %}
+                <label class="flex gap-2 items-center shrink-0 text-subtle whitespace-nowrap">
+                    Exibir
+                    <select x-model.number="porPagina" aria-label="Eventos por página" class="{{ classes_input_base }} pl-3 pr-8 py-2">
+                        {% for valor, rotulo in opcoes_por_pagina %}<option value="{{ valor }}"{% if valor == por_pagina_padrao %} selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+                    </select>
+                    por página
+                </label>
+            {% endif %}
+            <div class="flex items-center max-w-sm min-w-0 relative w-full">
+                <span class="absolute left-3 material-symbols-outlined pointer-events-none text-subtle">search</span>
+                <input type="search" x-model="busca" placeholder="Pesquisar nos eventos" aria-label="Pesquisar nos eventos"
+                       class="{{ classes_input_base }} pl-9 pr-3 py-2 w-full">
+            </div>
         </div>
     </div>
     {% if total %}
@@ -131,10 +143,9 @@
                         <th class="border-b border-t border-base-200 font-semibold px-4 py-2 text-left whitespace-nowrap dark:border-base-800">Documentos</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody x-ref="corpo">
                     {% for mov in p.movimentos %}
-                        <tr class="{% cycle '' 'bg-base-50 dark:bg-white/[.02]' %}"
-                            x-show="!busca || $el.textContent.toLowerCase().includes(busca.toLowerCase())">
+                        <tr class="{% cycle '' 'bg-base-50 dark:bg-white/[.02]' %}">
                             <td class="align-top border-b border-base-200 font-semibold px-4 py-2 text-important dark:border-base-800">{{ mov.numero }}</td>
                             <td class="align-top border-b border-base-200 px-3 py-2 whitespace-nowrap dark:border-base-800">{{ mov.data_hora|date:"d/m/Y H:i:s"|default:"—" }}</td>
                             <td class="align-top border-b border-base-200 px-3 py-2 dark:border-base-800">
@@ -172,6 +183,28 @@
                 </tbody>
             </table>
         </div>
+        <p x-cloak x-show="!total" class="px-4 py-6 text-center text-subtle">Nenhum evento encontrado para esta pesquisa.</p>
+
+        {% with botao="border border-base-200 cursor-pointer flex items-center justify-center min-w-8 h-8 rounded-default shadow-xs text-important hover:bg-base-100/80 disabled:cursor-not-allowed disabled:opacity-50 dark:border-base-700 dark:hover:bg-base-800/80" %}
+        <div x-cloak x-show="total" class="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center justify-between">
+            <p class="tabular-nums text-subtle" x-text="resumo"></p>
+            <nav x-show="totalPaginas > 1" class="flex gap-1 items-center" aria-label="Páginas dos eventos">
+                <button type="button" class="{{ botao }}" x-on:click="irPara(1)" x-bind:disabled="pagina === 1" title="Primeira página" aria-label="Primeira página">
+                    <span class="material-symbols-outlined">first_page</span>
+                </button>
+                <button type="button" class="{{ botao }}" x-on:click="irPara(pagina - 1)" x-bind:disabled="pagina === 1" title="Página anterior" aria-label="Página anterior">
+                    <span class="material-symbols-outlined">chevron_left</span>
+                </button>
+                <span class="px-2 tabular-nums text-important whitespace-nowrap" x-text="`Página ${pagina} de ${totalPaginas}`"></span>
+                <button type="button" class="{{ botao }}" x-on:click="irPara(pagina + 1)" x-bind:disabled="pagina === totalPaginas" title="Próxima página" aria-label="Próxima página">
+                    <span class="material-symbols-outlined">chevron_right</span>
+                </button>
+                <button type="button" class="{{ botao }}" x-on:click="irPara(totalPaginas)" x-bind:disabled="pagina === totalPaginas" title="Última página" aria-label="Última página">
+                    <span class="material-symbols-outlined">last_page</span>
+                </button>
+            </nav>
+        </div>
+        {% endwith %}
     {% else %}
         <p class="border-t border-base-200 px-4 py-6 text-center text-subtle dark:border-base-800">Nenhum evento informado.</p>
     {% endif %}
