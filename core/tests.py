@@ -228,6 +228,17 @@ class LoginPorEmailTests(TestCase):
         })
         self.assertRedirects(resp, '/admin/')
 
+    def test_superusuario_vai_para_o_admin(self):
+        get_user_model().objects.create_superuser('chefe', email='chefe@exemplo.com', password='senha-forte-123')
+        self.assertRedirects(self._login('chefe'), reverse('admin:index'))
+
+    def test_superusuario_respeita_next_especifico(self):
+        get_user_model().objects.create_superuser('chefe', email='chefe@exemplo.com', password='senha-forte-123')
+        resp = self.client.post(f"{reverse('login')}?next=/sistemas/", {
+            'username': 'chefe', 'password': 'senha-forte-123',
+        })
+        self.assertEqual(resp.url, '/sistemas/')
+
     def test_cadastro_recusa_usuario_com_arroba(self):
         dados = {**CadastroTests.dados, 'username': 'alguem@exemplo.com'}
         resp = self.client.post(reverse('cadastro'), dados)

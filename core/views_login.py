@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth import views as auth_views
 from django.shortcuts import resolve_url
+from django.urls import reverse
 
 from judicial.preferencias import url_ambiente_padrao
 
@@ -11,10 +12,14 @@ class LoginView(auth_views.LoginView):
     Se o usuário estava indo para uma página específica (parâmetro "next"),
     ela tem prioridade. "next" apontando para a página inicial não conta como
     destino específico: é o que acontece quando alguém simplesmente abre o site.
+
+    Superusuários só administram o sistema, então vão direto para o admin.
     """
 
     def get_success_url(self):
         destino = self.get_redirect_url()
         if destino and destino != resolve_url(settings.LOGIN_REDIRECT_URL):
             return destino
+        if self.request.user.is_superuser:
+            return reverse('admin:index')
         return url_ambiente_padrao(self.request.user) or self.get_default_redirect_url()

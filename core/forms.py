@@ -7,13 +7,22 @@ INPUT_CLASSES = ' '.join(BASE_INPUT_CLASSES)
 
 
 class UnfoldFormMixin:
-    """Aplica nos campos as mesmas classes CSS dos inputs do Unfold."""
+    """Aplica nos campos as mesmas classes CSS dos inputs do Unfold.
+
+    Campos de senha ganham o botão de mostrar/ocultar (olho) do próprio Unfold.
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
-            if getattr(field.widget, 'input_type', None) not in ('checkbox', 'radio', 'hidden'):
-                field.widget.attrs['class'] = INPUT_CLASSES
+            tipo = getattr(field.widget, 'input_type', None)
+            if tipo in ('checkbox', 'radio', 'hidden'):
+                continue
+            field.widget.attrs['class'] = INPUT_CLASSES
+            if tipo == 'password':
+                # pr-10 reserva espaço para o ícone não ficar sobre o texto.
+                field.widget.attrs['class'] += ' pr-10'
+                field.widget.template_name = 'unfold/widgets/password_toggle.html'
 
 
 class LoginForm(UnfoldFormMixin, auth_forms.AuthenticationForm):
