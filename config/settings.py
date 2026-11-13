@@ -14,6 +14,8 @@ import os
 import sys
 from pathlib import Path
 
+from django.templatetags.static import static
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -180,6 +182,19 @@ UNFOLD = {
     'SITE_TITLE': 'EloJudicial',
     'SITE_HEADER': 'EloJudicial',
     'SITE_SUBHEADER': 'Administração',
+    # Marca: dois elos entrelaçados formando uma balança (elo + Justiça).
+    'SITE_ICON': {
+        'light': lambda request: static('elojudicial/logo-claro.svg'),
+        'dark': lambda request: static('elojudicial/logo-escuro.svg'),
+    },
+    'SITE_FAVICONS': [
+        {
+            'rel': 'icon',
+            'sizes': 'any',
+            'type': 'image/svg+xml',
+            'href': lambda request: static('elojudicial/favicon.svg'),
+        },
+    ],
 }
 
 # Cache. Em Docker usa Redis só em memória (sem gravação em disco), compartilhado

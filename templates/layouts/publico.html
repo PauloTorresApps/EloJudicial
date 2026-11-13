@@ -18,7 +18,7 @@
                 <div class="border-b border-base-200 mb-8 pb-6 dark:border-base-800">
                     <h1 class="font-semibold">
                         <span class="block text-font-important-light dark:text-font-important-dark">{% block subtitulo %}{% endblock %}</span>
-                        <span class="flex font-semibold gap-2 items-center text-primary-600 tracking-tight text-xl dark:text-primary-400"><span class="elo-selo material-symbols-outlined">account_balance</span>{% block cabecalho %}{{ site_header }}{% endblock %}</span>
+                        <span class="flex font-semibold gap-2 items-center text-primary-600 tracking-tight text-xl dark:text-primary-400">{% include "layouts/_logo.html" with tamanho=28 %}{% block cabecalho %}{{ site_header }}{% endblock %}</span>
                     </h1>
                 </div>
 
