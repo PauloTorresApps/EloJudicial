@@ -22,7 +22,7 @@ class Base(TestCase):
         self.addCleanup(patcher.stop)
         self.user = get_user_model().objects.create_user('ana', email='ana@exemplo.com', password=SENHA)
         self.eproc = SistemaJudicial.objects.get(nome='EPROC TJTO')
-        self.amb1, self.amb2 = self.eproc.ambientes.order_by('ordem')
+        self.amb1, self.amb2 = self.eproc.ambientes.order_by('ordem')[:2]
 
     def url_servicos(self, amb):
         return reverse('sistemas:servicos', args=[amb.sistema_id, amb.pk])

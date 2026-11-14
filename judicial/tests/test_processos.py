@@ -171,7 +171,7 @@ class Base(TestCase):
         self.user = get_user_model().objects.create_user('ana', email='ana@exemplo.com', password='x')
         self.client.force_login(self.user)
         self.eproc = SistemaJudicial.objects.get(nome='EPROC TJTO')
-        self.amb1, self.amb2 = self.eproc.ambientes.order_by('ordem')
+        self.amb1, self.amb2 = self.eproc.ambientes.order_by('ordem')[:2]
 
     def informar_senha(self):
         self.client.post(reverse('sistemas:informar_senha', args=[self.eproc.pk]), {'login': '123', 'senha': self.SENHA})

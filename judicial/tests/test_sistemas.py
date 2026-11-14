@@ -13,6 +13,8 @@ from judicial.models import Ambiente, Credencial, SistemaJudicial
 WSDL_EXEMPLO = (Path(__file__).parent / 'dados' / 'servico_exemplo.wsdl').read_bytes()
 URL_1G = 'https://eproc1g-ws.tjto.jus.br/eprocV2_prod_1grau/wsdl.php?srv=intercomunicacao3.0'
 URL_2G = 'https://eproc2g-ws.tjto.jus.br/eprocV2_prod_2grau/wsdl.php?srv=intercomunicacao3.0'
+URL_1G_22 = 'https://eproc1g-ws.tjto.jus.br/eprocV2_prod_1grau/wsdl.php?srv=intercomunicacao2.2'
+URL_2G_22 = 'https://eproc2g-ws.tjto.jus.br/eprocV2_prod_2grau/wsdl.php?srv=intercomunicacao2.2'
 
 
 class DadosIniciaisTests(TestCase):
@@ -20,7 +22,7 @@ class DadosIniciaisTests(TestCase):
         sistema = SistemaJudicial.objects.get(nome='EPROC TJTO')
         self.assertEqual(
             list(sistema.ambientes.values_list('descricao', 'url_servico')),
-            [('1º Grau', URL_1G), ('2º Grau', URL_2G)],
+            [('1º Grau', URL_1G), ('2º Grau', URL_2G), ('1º Grau (MNI 2.2)', URL_1G_22), ('2º Grau (MNI 2.2)', URL_2G_22)],
         )
         self.assertFalse(SistemaJudicial.objects.filter(nome='EPROC').exists())
 
@@ -106,7 +108,7 @@ class TelasSistemasTests(TestCase):
         self.user = get_user_model().objects.create_user('ana', email='ana@exemplo.com', password='x')
         self.client.force_login(self.user)
         self.eproc = SistemaJudicial.objects.get(nome='EPROC TJTO')
-        self.amb1, self.amb2 = self.eproc.ambientes.order_by('ordem')
+        self.amb1, self.amb2 = self.eproc.ambientes.order_by('ordem')[:2]
 
     def _servicos(self, ambiente, **kwargs):
         return reverse('sistemas:servicos', args=[ambiente.sistema_id, ambiente.pk])
@@ -119,7 +121,7 @@ class TelasSistemasTests(TestCase):
     def test_lista_de_sistemas(self):
         resp = self.client.get(reverse('sistemas:lista'))
         self.assertContains(resp, 'EPROC TJTO')
-        self.assertContains(resp, '2 ambientes de trabalho')
+        self.assertContains(resp, '4 ambientes de trabalho')
         self.assertContains(resp, reverse('sistemas:ambientes', args=[self.eproc.pk]))
         pje = SistemaJudicial.objects.get(nome='PJe')
         self.assertContains(resp, reverse('sistemas:ambientes', args=[pje.pk]))  # sem ambientes: abre para cadastrar o usuário
@@ -140,8 +142,8 @@ class TelasSistemasTests(TestCase):
         self.amb2.ativo = False
         self.amb2.save()
         resp = self.client.get(reverse('sistemas:ambientes', args=[self.eproc.pk]))
-        self.assertContains(resp, '1º Grau')
-        self.assertNotContains(resp, '2º Grau')
+        self.assertContains(resp, self._servicos(self.amb1))
+        self.assertNotContains(resp, self._servicos(self.amb2))
         self.assertContains(resp, 'Informe sua senha para acessar os serviços')
         self.assertEqual(self.client.get(self._servicos(self.amb2)).status_code, 404)
 
