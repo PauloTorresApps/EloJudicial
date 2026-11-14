@@ -42,8 +42,10 @@ class AmbienteModeloTests(TestCase):
         Ambiente.objects.create(sistema=pje, descricao='1º Grau', url_servico='https://pje.jus.br/ws')
 
     def test_excluir_sistema_sem_credenciais_remove_ambientes(self):
+        pk = self.sistema.pk  # delete() zera o pk da instância
+        self.assertTrue(Ambiente.objects.filter(sistema_id=pk).exists())
         self.sistema.delete()
-        self.assertFalse(Ambiente.objects.exists())
+        self.assertFalse(Ambiente.objects.filter(sistema_id=pk).exists())
 
 
 class InterpretarWSDLTests(TestCase):

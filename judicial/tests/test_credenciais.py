@@ -18,9 +18,16 @@ class Base(TestCase):
 
 class SistemasIniciaisTests(TestCase):
     def test_migracao_cria_sistemas_iniciais(self):
-        self.assertEqual(
-            set(SistemaJudicial.objects.values_list('nome', flat=True)), {'EPROC TJTO', 'PROJUD', 'PJe'}
+        self.assertLessEqual(
+            {'EPROC TJTO', 'PROJUD', 'PJe'}, set(SistemaJudicial.objects.values_list('nome', flat=True))
         )
+
+    def test_migracao_cria_sistemas_confirmados(self):
+        nomes = set(SistemaJudicial.objects.values_list('nome', flat=True))
+        self.assertLessEqual({'STF', 'PJE TJBA', 'PJE TRF1', 'PJE-JT TRT15', 'EPROC TJM-RS'}, nomes)
+        self.assertEqual(SistemaJudicial.objects.get(nome='PJE TJMA').ambientes.count(), 2)
+        # Webservice do Projudi do TJAM não é MNI: fica cadastrado, mas inativo.
+        self.assertFalse(SistemaJudicial.objects.get(nome='PROJUDI TJAM').ativo)
 
     def test_nome_do_sistema_unico_sem_diferenciar_maiusculas(self):
         with self.assertRaises(IntegrityError), transaction.atomic():
