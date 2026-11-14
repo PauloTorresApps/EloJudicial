@@ -45,29 +45,29 @@ class _RespostaComTipo(_Resposta):
 
 class ClienteDocumentosTests(Base):
     def test_envelope(self):
-        corpo = mni._envelope_consultar_documentos('123', 'hash', NUMERO, ['d1']).decode()
+        corpo = mni.ClienteMNI300.envelope_consultar_documento('123', 'hash', NUMERO, 'd1').decode()
         posicoes = [corpo.index(f':{n}') for n in ('consultante', 'numeroProcesso', 'idDocumento')]
         self.assertEqual(posicoes, sorted(posicoes))
         self.assertIn('idDocumento>d1<', corpo)
 
     def test_conteudo_em_base64(self):
-        r = mni.interpretar_documentos(resposta_base64(PDF, 'application/pdf'))
+        r = mni.ClienteMNI300.interpretar_documentos(resposta_base64(PDF, 'application/pdf'))
         self.assertTrue(r.sucesso)
         self.assertEqual((r.documentos[0].id, r.documentos[0].mimetype, r.documentos[0].dados), ('d1', 'application/pdf', PDF))
 
     def test_conteudo_em_mtom(self):
         corpo, tipo = resposta_mtom(PDF, 'application/pdf')
-        r = mni.interpretar_documentos(corpo, tipo)
+        r = mni.ClienteMNI300.interpretar_documentos(corpo, tipo)
         self.assertEqual(r.documentos[0].dados, PDF)
 
     def test_mtom_sem_anexo_correspondente(self):
         corpo, tipo = resposta_mtom(PDF, 'application/pdf')
         with self.assertRaises(mni.ErroMNI):
-            mni.interpretar_documentos(corpo.replace(b'<anexo1@jus.br>', b'<outro@jus.br>'), tipo)
+            mni.ClienteMNI300.interpretar_documentos(corpo.replace(b'<anexo1@jus.br>', b'<outro@jus.br>'), tipo)
 
     def test_base64_corrompido(self):
         with self.assertRaisesMessage(mni.ErroMNI, 'corrompido'):
-            mni.interpretar_documentos(resposta_base64(PDF, 'application/pdf').replace(b'<ns1:conteudo>', b'<ns1:conteudo>@@'))
+            mni.ClienteMNI300.interpretar_documentos(resposta_base64(PDF, 'application/pdf').replace(b'<ns1:conteudo>', b'<ns1:conteudo>@@'))
 
     def test_consulta_usa_limite_maior_e_le_content_type(self):
         corpo, tipo = resposta_mtom(PDF, 'application/pdf')

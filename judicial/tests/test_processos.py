@@ -59,7 +59,7 @@ class ClienteConsultarProcessoTests(TestCase):
         self.assertRegex(corpo, r'<ns\d:parametros nome="incluirDescricoes" valor="true" />')
 
     def test_interpreta_processo(self):
-        r = mni.interpretar_processo(RESPOSTA_PROCESSO)
+        r = mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO)
         p = r.processo
         self.assertTrue(r.sucesso)
         self.assertEqual(p.numero_formatado, NUMERO_FORMATADO)
@@ -76,7 +76,7 @@ class ClienteConsultarProcessoTests(TestCase):
         self.assertEqual(p.movimentos[0].complementos, ['Prazo: 15 dias'])
 
     def test_campos_da_capa_partes_e_eventos(self):
-        p = mni.interpretar_processo(RESPOSTA_PROCESSO).processo
+        p = mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO).processo
         self.assertEqual((p.competencia, p.outros_numeros, p.prioridades_descricao),
                          ('14', ['2024.0001234-01 DP Palmas'], ['Idoso', 'Cível']))
         self.assertEqual([pl.codigo for pl in p.polos_principais], ['AT', 'PA'])
@@ -91,7 +91,7 @@ class ClienteConsultarProcessoTests(TestCase):
 
     def test_descricoes_do_eproc_via_outro_parametro(self):
         """Com incluirDescricoes=true o eproc envia desClasse, desAssunto e desTipoParte* como outroParametro."""
-        p = mni.interpretar_processo(RESPOSTA_PROCESSO).processo
+        p = mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO).processo
         self.assertEqual((p.classe, p.classe_descricao), ('7', 'Procedimento Comum Cível'))
         self.assertEqual(p.situacao, 'MOVIMENTO')
         self.assertEqual(p.data_ajuizamento.strftime('%d/%m/%Y %H:%M:%S'), '15/03/2024 14:22:33')  # dataAutuacao
@@ -102,13 +102,13 @@ class ClienteConsultarProcessoTests(TestCase):
     def test_sem_descricoes_usa_codigos_e_nomes_padrao(self):
         import re as _re
         conteudo = _re.sub(rb'<ns1:outroParametro nome="(desClasse|desAssunto|desTipoParte..)"[^>]*/>', b'', RESPOSTA_PROCESSO)
-        p = mni.interpretar_processo(conteudo).processo
+        p = mni.ClienteMNI300.interpretar_processo(conteudo).processo
         self.assertEqual(p.classe_descricao, '')
         self.assertIn('Assunto 7780', p.assuntos)
         self.assertEqual([pl.nome for pl in p.polos_principais], ['Polo ativo', 'Polo passivo'])
 
     def test_documentos_relacionados_aos_eventos(self):
-        p = mni.interpretar_processo(RESPOSTA_PROCESSO).processo
+        p = mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO).processo
         evento = {m.numero: m for m in p.movimentos}
         # evento 1: pelo idDocumentoVinculado do movimento
         self.assertEqual([d.nome for d in evento[1].documentos], ['INIC1', 'ANEXO2'])
@@ -122,7 +122,7 @@ class ClienteConsultarProcessoTests(TestCase):
         self.assertEqual(evento[2].documentos, [])
 
     def test_conteudo_dos_documentos_e_ignorado(self):
-        p = mni.interpretar_processo(RESPOSTA_PROCESSO).processo
+        p = mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO).processo
         for mov in p.movimentos:
             for doc in mov.documentos:
                 self.assertFalse(hasattr(doc, 'conteudo'))
@@ -135,11 +135,11 @@ class ClienteConsultarProcessoTests(TestCase):
 
     def test_resposta_grande_demais_repete_sem_documentos(self):
         respostas = [mni.RespostaGrandeDemais('grande'), RESPOSTA_PROCESSO]
-        with mock.patch.object(mni, '_enviar', side_effect=respostas) as enviar:
+        with mock.patch.object(mni.ClienteMNI, '_enviar', side_effect=respostas) as enviar:
             r = mni.consultar_processo(self.ambiente, '1', 'h', NUMERO)
         self.assertTrue(r.documentos_omitidos)
-        self.assertIn(b'incluirDocumentos>true<', enviar.call_args_list[0].args[2])
-        self.assertIn(b'incluirDocumentos>false<', enviar.call_args_list[1].args[2])
+        self.assertIn(b'incluirDocumentos>true<', enviar.call_args_list[0].args[1])
+        self.assertIn(b'incluirDocumentos>false<', enviar.call_args_list[1].args[1])
         self.assertEqual(r.processo.numero_formatado, NUMERO_FORMATADO)
 
     def test_formatacoes(self):
@@ -150,11 +150,11 @@ class ClienteConsultarProcessoTests(TestCase):
 
     def test_movimentos_sem_data_nao_quebram_a_ordenacao(self):
         conteudo = RESPOSTA_PROCESSO.replace(b'dataHora="2025-06-01T09:00:00-03:00" ', b'')
-        movs = mni.interpretar_processo(conteudo).processo.movimentos
+        movs = mni.ClienteMNI300.interpretar_processo(conteudo).processo.movimentos
         self.assertIsNone(movs[-1].data_hora)
 
     def test_nao_encontrado(self):
-        r = mni.interpretar_processo(RESPOSTA_NAO_ENCONTRADO)
+        r = mni.ClienteMNI300.interpretar_processo(RESPOSTA_NAO_ENCONTRADO)
         self.assertFalse(r.sucesso)
         self.assertIsNone(r.processo)
         self.assertFalse(mni.falha_de_autenticacao(r))
@@ -301,17 +301,17 @@ RESPOSTA_COMPETENCIAS = (DADOS / 'competencias_resposta.xml').read_bytes()
 
 class CompetenciasTests(Base):
     def test_interpreta_tabela(self):
-        tabela = mni.interpretar_competencias(RESPOSTA_COMPETENCIAS)
+        tabela = mni.ClienteMNI300.interpretar_competencias(RESPOSTA_COMPETENCIAS)
         self.assertEqual(len(tabela), 16)
         self.assertEqual(tabela['5'], 'CRIMINAL')
         self.assertEqual(tabela['14'], 'JUSTIÇA MILITAR / CONSELHO PERMANENTE')
 
     def test_processo_traz_codigo_da_localidade(self):
-        self.assertEqual(mni.interpretar_processo(RESPOSTA_PROCESSO).processo.codigo_localidade, '2729')
+        self.assertEqual(mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO).processo.codigo_localidade, '2729')
 
     def test_envelope_sem_autenticacao(self):
         with mock.patch('urllib.request.urlopen', return_value=_Resposta(RESPOSTA_COMPETENCIAS)) as urlopen:
-            mni.consultar_competencias(self.amb1, '2729')
+            mni.cliente(self.amb1).consultar_competencias('2729')
         req = urlopen.call_args.args[0]
         corpo = req.data.decode()
         self.assertEqual(req.get_header('Soapaction'), '"http://www.cnj.jus.br/mni/v300/consultarCompetencias"')
@@ -321,18 +321,18 @@ class CompetenciasTests(Base):
 
     def test_tabela_fica_em_cache_por_ambiente_e_localidade(self):
         with mock.patch('urllib.request.urlopen', return_value=_Resposta(RESPOSTA_COMPETENCIAS)) as urlopen:
-            mni.consultar_competencias(self.amb1, '2729')
-            mni.consultar_competencias(self.amb1, '2729')
+            mni.cliente(self.amb1).consultar_competencias('2729')
+            mni.cliente(self.amb1).consultar_competencias('2729')
             self.assertEqual(urlopen.call_count, 1)
-            mni.consultar_competencias(self.amb1, '9999')
-            mni.consultar_competencias(self.amb2, '2729')
+            mni.cliente(self.amb1).consultar_competencias('9999')
+            mni.cliente(self.amb2).consultar_competencias('2729')
             self.assertEqual(urlopen.call_count, 3)
 
     def test_tabela_vazia_nao_fica_em_cache(self):
         vazia = RESPOSTA_COMPETENCIAS.split(b'<ns2:competencias>')[0] + b'</ns3:respostaConsultarCompetencias></SOAP-ENV:Body></SOAP-ENV:Envelope>'
         with mock.patch('urllib.request.urlopen', return_value=_Resposta(vazia)) as urlopen:
-            self.assertEqual(mni.consultar_competencias(self.amb1, '1'), {})
-            mni.consultar_competencias(self.amb1, '1')
+            self.assertEqual(mni.cliente(self.amb1).consultar_competencias('1'), {})
+            mni.cliente(self.amb1).consultar_competencias('1')
         self.assertEqual(urlopen.call_count, 2)
 
     def test_pagina_mostra_a_descricao_da_competencia(self):
@@ -346,7 +346,7 @@ class CompetenciasTests(Base):
 
     def test_aviso_quando_documentos_foram_omitidos(self):
         self.informar_senha()
-        with mock.patch.object(mni, '_enviar', side_effect=[mni.RespostaGrandeDemais('x'), RESPOSTA_PROCESSO, RESPOSTA_COMPETENCIAS]):
+        with mock.patch.object(mni.ClienteMNI, '_enviar', side_effect=[mni.RespostaGrandeDemais('x'), RESPOSTA_PROCESSO, RESPOSTA_COMPETENCIAS]):
             resp = self.client.get(self.url_dados(self.amb1))
         self.assertContains(resp, 'muito grande para trazer a lista de documentos')
         self.assertContains(resp, NUMERO_FORMATADO)
@@ -365,7 +365,7 @@ class PaginacaoEventosTests(Base):
     """A tabela de eventos é paginada no navegador (judicial/eventos.js): padrão 35 por página."""
 
     def dados_com_eventos(self, quantidade):
-        resultado = mni.interpretar_processo(RESPOSTA_PROCESSO)
+        resultado = mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO)
         base = resultado.processo.movimentos[0]
         resultado.processo.movimentos = [
             mni.Movimento(data_hora=base.data_hora, descricao=f'Evento de teste {n}', numero=n)
@@ -402,7 +402,7 @@ class PaginacaoEventosTests(Base):
 
 class CapaDoProcessoTests(Base):
     def dados(self, processo_sem_prioridade=False):
-        resultado = mni.interpretar_processo(RESPOSTA_PROCESSO)
+        resultado = mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO)
         if processo_sem_prioridade:
             resultado.processo.prioridades_tribunal = []
             resultado.processo.prioridades = []

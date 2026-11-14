@@ -23,7 +23,7 @@ CACHE_SEGUNDOS = 60 * 60
 # Ordem de exibição dos grupos.
 GRUPOS = ['Processos', 'Comunicações processuais', 'Peticionamento', 'Remessas', 'Tabelas de apoio']
 
-# Títulos e grupos em português para as operações conhecidas do MNI 3.0.
+# Títulos e grupos em português para as operações conhecidas do MNI (3.0 e 2.2).
 # Operações fora desta lista usam um título gerado a partir do nome técnico.
 OPERACOES_MNI = {
     'consultarProcesso': ('Consultar processo', 'Processos'),
@@ -37,6 +37,7 @@ OPERACOES_MNI = {
     'remeterProcesso': ('Remeter processo', 'Remessas'),
     'consultarRemessas': ('Consultar remessas', 'Remessas'),
     'confirmarRecebimento': ('Confirmar recebimento', 'Remessas'),
+    'entregarManifestacaoProcessual': ('Entregar manifestação processual', 'Peticionamento'),
     'consultarAssuntos': ('Consultar assuntos', 'Tabelas de apoio'),
     'consultarClasses': ('Consultar classes', 'Tabelas de apoio'),
     'consultarCompetencias': ('Consultar competências', 'Tabelas de apoio'),
@@ -79,6 +80,7 @@ class DescricaoServico:
     nome: str
     endereco: str
     operacoes: list[Operacao] = field(default_factory=list)
+    namespace: str = ''  # targetNamespace do WSDL: identifica a versão do MNI
 
     @property
     def grupos(self):
@@ -130,11 +132,12 @@ def interpretar(conteudo: bytes) -> DescricaoServico:
         nome=(servico.get('name') if servico is not None else '') or raiz.get('name', ''),
         endereco=endereco,
         operacoes=list(operacoes.values()),
+        namespace=raiz.get('targetNamespace', ''),
     )
 
 
 def descrever_servico(url: str, usar_cache: bool = True) -> DescricaoServico:
-    chave = 'wsdl:' + hashlib.sha256(url.encode()).hexdigest()
+    chave = 'wsdl:v2:' + hashlib.sha256(url.encode()).hexdigest()
     if usar_cache and (em_cache := cache.get(chave)) is not None:
         return em_cache
     descricao = interpretar(_baixar(url))

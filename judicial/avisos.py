@@ -1,6 +1,6 @@
 """Consulta de avisos pendentes com registro de tudo o que o tribunal devolve.
 
-O consultarAvisosPendentes do MNI 3.0 entrega cada aviso uma única vez: depois de
+O consultarAvisosPendentes do MNI (3.0 e 2.2.2) entrega cada aviso uma única vez: depois de
 consultado, ele deixa de ser devolvido. Por isso a resposta bruta é gravada assim que
 chega (antes de ser interpretada) e cada aviso vira um registro do usuário, marcado
 como pendente até ser tratado.

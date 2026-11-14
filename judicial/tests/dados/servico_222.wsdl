@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions name="servico-intercomunicacao-2.2.2"
+    xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+    xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+    xmlns:tns="http://www.cnj.jus.br/servico-intercomunicacao-2.2.2/"
+    targetNamespace="http://www.cnj.jus.br/servico-intercomunicacao-2.2.2/">
+    <wsdl:portType name="servico-intercomunicacao-222">
+        <wsdl:operation name="consultarAvisosPendentes"/>
+        <wsdl:operation name="consultarTeorComunicacao"/>
+        <wsdl:operation name="consultarProcesso"/>
+        <wsdl:operation name="entregarManifestacaoProcessual"/>
+        <wsdl:operation name="consultarAlteracao"/>
+        <wsdl:operation name="confirmarRecebimento"/>
+    </wsdl:portType>
+    <wsdl:service name="servico-intercomunicacao-222">
+        <wsdl:port name="servico-intercomunicacao-222SOAP" binding="tns:servico-intercomunicacao-222SOAP">
+            <soap:address location="https://pje.exemplo.jus.br/pje/intercomunicacao"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>
