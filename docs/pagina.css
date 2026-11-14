@@ -227,17 +227,6 @@ p { color: var(--ej-nevoa); }
 }
 .fluxo-senha li strong { color: var(--ej-texto); }
 .fluxo-senha li p { font-size: 15px; }
-.codigo {
-  display: block;
-  margin-top: 6px;
-  padding: 8px 12px;
-  overflow-x: auto;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--ej-tinta) 70%, transparent);
-  color: var(--ej-sinal-claro);
-  font-size: 13px;
-  white-space: nowrap;
-}
 
 /* ---------- Tribunais ---------- */
 .tribunal-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }

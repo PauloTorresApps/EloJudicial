@@ -204,8 +204,8 @@
           <span class="ej-etiqueta ej-etiqueta--elo">O caminho da senha</span>
           <ol>
             <li><div><strong>Você digita a senha uma vez</strong><p>No início da sessão, para o sistema que vai consultar.</p></div></li>
-            <li><div><strong>Ela vira um hash na hora</strong><p>A senha original é descartada. Só o hash segue adiante.</p><code class="codigo ej-mono">sha256(senha) → cache em memória</code></div></li>
-            <li><div><strong>E expira sozinha</strong><p>O hash some ao sair do EloJudicial, ao fim do prazo da sessão ou se o tribunal recusar a autenticação.</p></div></li>
+            <li><div><strong>Ela fica só durante o uso</strong><p>Nada vai para o banco de dados. A senha que você digitou não é guardada como texto.</p></div></li>
+            <li><div><strong>E expira sozinha</strong><p>Ela é esquecida quando você sai do EloJudicial, quando o tempo da sessão termina ou quando o tribunal recusa a autenticação.</p></div></li>
           </ol>
         </div>
       </div>
@@ -213,7 +213,7 @@
       <ul class="garantias">
         <li>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
-          <div><strong>Nada de senha no banco de dados</strong><p>O hash fica só no cache em memória (Redis), vinculado à sua sessão e ao sistema, e nunca aparece em log.</p></div>
+          <div><strong>Nada de senha no banco de dados</strong><p>A credencial do tribunal vale só para a sua sessão, fica em memória temporária e nunca aparece em log.</p></div>
         </li>
         <li>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"></circle><path d="M2 21a7 7 0 0 1 14 0"></path><path d="m17 11 2 2 4-4"></path></svg>
