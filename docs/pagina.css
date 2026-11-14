@@ -59,7 +59,17 @@ p { color: var(--ej-nevoa); }
   color: var(--ej-texto);
   text-decoration: none;
 }
+.marca svg { flex: none; }
 .marca .ej-assinatura { font-size: 22px; }
+@media (max-width: 400px) {
+  .marca { gap: 6px; }
+  .marca svg { width: 34px; height: 24px; }
+  .marca .ej-assinatura { font-size: 18px; }
+  .topo .conteiner { gap: 8px; }
+  .topo-acoes { gap: 6px; }
+  .topo-acoes .entrar { padding: 0 12px; }
+  .icone-botao { width: 36px; height: 36px; }
+}
 .nav {
   display: flex;
   gap: 4px;
@@ -73,7 +83,8 @@ p { color: var(--ej-nevoa); }
   text-decoration: none;
 }
 .nav a:hover { color: var(--ej-texto); background: color-mix(in srgb, var(--ej-texto) 7%, transparent); }
-.topo-acoes { display: flex; gap: 8px; }
+.topo-acoes { display: flex; align-items: center; gap: 8px; }
+.topo-acoes .entrar { min-height: 40px; padding: 0 16px; font-size: 14px; }
 .icone-botao {
   display: inline-grid;
   place-items: center;
