@@ -71,6 +71,17 @@ class EscolhaDaVersaoTests(Base):
         self.assertIsInstance(cliente, mni.ClienteMNI222)
         self.assertEqual(cliente.endereco, 'https://pje.exemplo.jus.br/pje/intercomunicacao')
 
+    def test_endereco_http_vira_https_quando_o_wsdl_e_https(self):
+        http = WSDL.replace(b'https://pje.exemplo.jus.br', b'http://pje.exemplo.jus.br')
+        with mock.patch.object(wsdl, '_baixar', return_value=http):
+            self.assertEqual(mni.cliente(self.ambiente).endereco, 'https://pje.exemplo.jus.br/pje/intercomunicacao')
+
+    def test_endereco_http_mantido_quando_o_wsdl_e_http(self):
+        http = WSDL.replace(b'https://pje.exemplo.jus.br', b'http://pje.exemplo.jus.br')
+        self.ambiente.url_servico = 'http://pje.exemplo.jus.br/pje/intercomunicacao?wsdl'
+        with mock.patch.object(wsdl, '_baixar', return_value=http):
+            self.assertEqual(mni.cliente(self.ambiente).endereco, 'http://pje.exemplo.jus.br/pje/intercomunicacao')
+
     def test_wsdl_3_0_usa_o_cliente_3_0(self):
         with mock.patch.object(wsdl, '_baixar', return_value=WSDL_300):
             self.assertIsInstance(mni.cliente(self.ambiente), mni.ClienteMNI300)

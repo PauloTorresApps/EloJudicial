@@ -27,4 +27,15 @@ def cliente(ambiente) -> ClienteMNI:
         raise ErroMNI('A versão do MNI deste serviço ainda não é suportada pelo EloJudicial. Avise o administrador.')
     if not servico.endereco:
         raise ErroMNI('O serviço deste ambiente não informou o endereço de execução. Avise o administrador.')
-    return classe(ambiente, servico.endereco)
+    return classe(ambiente, endereco_seguro(servico.endereco, ambiente.url_servico))
+
+
+def endereco_seguro(endereco: str, url_wsdl: str) -> str:
+    """Endereço de execução em HTTPS quando o WSDL foi obtido por HTTPS.
+
+    Alguns WSDLs (e-SAJ do TJSP e do TJAM) anunciam o serviço em http://, embora o mesmo
+    endereço atenda em https://. Sem a troca, login e senha trafegariam sem criptografia.
+    """
+    if url_wsdl.lower().startswith('https://') and endereco.lower().startswith('http://'):
+        return 'https://' + endereco[len('http://'):]
+    return endereco
