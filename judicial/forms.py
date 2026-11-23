@@ -16,6 +16,3 @@ class CredencialForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.instance.usuario = usuario
         self.instance.sistema = sistema
-
-    def clean_login(self):
-        return self.cleaned_data['login'].strip()

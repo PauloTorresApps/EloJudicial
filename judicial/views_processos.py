@@ -6,12 +6,11 @@ from django.contrib import messages
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.utils.http import url_has_allowed_host_and_scheme
 
 from . import mni, senhas
 from .models import Ambiente
 from .preferencias import ambiente_padrao
-from .views_sistemas import SESSAO_AMBIENTE, _ambiente_ativo, _credencial
+from .views_sistemas import SESSAO_AMBIENTE, _ambiente_ativo, _credencial, _destino_seguro
 
 
 SESSAO_BUSCA = 'busca_processo'
@@ -22,18 +21,13 @@ EVENTOS_POR_PAGINA_PADRAO = 35
 
 def _ambiente_de_trabalho(request):
     """Ambiente em uso na sessão; se não houver, o ambiente padrão do usuário."""
-    ambiente = (
-        Ambiente.objects.select_related('sistema')
-        .filter(pk=request.session.get(SESSAO_AMBIENTE), ativo=True, sistema__ativo=True)
-        .first()
-    )
+    ambiente = Ambiente.objects.ativos().filter(pk=request.session.get(SESSAO_AMBIENTE)).first()
     return ambiente or ambiente_padrao(request.user)
 
 
 def buscar(request):
     """Recebe o número digitado na barra do topo e abre a consulta no ambiente de trabalho."""
-    referer = request.META.get('HTTP_REFERER', '')
-    if url_has_allowed_host_and_scheme(referer, allowed_hosts={request.get_host()}):
+    if referer := _destino_seguro(request, request.META.get('HTTP_REFERER', '')):
         partes = urlsplit(referer)
         voltar = partes.path + (f'?{partes.query}' if partes.query else '')
     else:

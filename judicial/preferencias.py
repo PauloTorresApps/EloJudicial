@@ -7,14 +7,9 @@ def ambiente_padrao(usuario):
     """Ambiente padrão do usuário, se ainda estiver ativo (ambiente e sistema)."""
     if not usuario.is_authenticated:
         return None
-    return (
-        Ambiente.objects.select_related('sistema')
-        .filter(
-            pk=Preferencia.objects.filter(usuario=usuario).values('ambiente_padrao')[:1],
-            ativo=True, sistema__ativo=True,
-        )
-        .first()
-    )
+    return Ambiente.objects.ativos().filter(
+        pk=Preferencia.objects.filter(usuario=usuario).values('ambiente_padrao')[:1],
+    ).first()
 
 
 def definir_ambiente_padrao(usuario, ambiente):

@@ -34,7 +34,8 @@ def _destino_seguro(request, destino):
 
 
 def _credencial(request, sistema):
-    return request.user.credenciais_judiciais.filter(sistema=sistema).first()
+    # No máximo uma por (usuário, sistema): order_by() dispensa o JOIN/ORDER BY do Meta.ordering.
+    return request.user.credenciais_judiciais.filter(sistema=sistema).order_by().first()
 
 
 def contexto_sistemas(request, somente_com_credencial=False):
@@ -72,10 +73,7 @@ def ambientes(request, pk):
 
 
 def _ambiente_ativo(sistema_pk, pk):
-    return get_object_or_404(
-        Ambiente.objects.select_related('sistema'),
-        pk=pk, sistema_id=sistema_pk, ativo=True, sistema__ativo=True,
-    )
+    return get_object_or_404(Ambiente.objects.ativos(), pk=pk, sistema_id=sistema_pk)
 
 
 def servicos(request, sistema_pk, pk):
@@ -110,24 +108,21 @@ def avisos_pendentes(request, sistema_pk, pk):
     }
     if credencial is None or senha_hash is None:
         contexto['pedir_senha'] = True
-        contexto['avisos'] = avisos_guardados(request.user, ambiente)
-        contexto['ultima_consulta'] = ultima_consulta(request.user, ambiente)
-        return render(request, 'judicial/sistemas/_avisos.html', contexto)
-
-    _marcar_avisos_consultados(request, ambiente)
-    try:
-        resultado, contexto['novos'] = consultar_e_registrar(request.user, ambiente, credencial.login, senha_hash)
-    except mni.ErroMNI as exc:
-        contexto['erro'] = str(exc)
     else:
-        if mni.falha_de_autenticacao(resultado):
-            # Senha recusada: descarta o hash e pede de novo.
-            senhas.esquecer(request, sistema)
-            contexto['pedir_senha'] = True
-            contexto['erro_senha'] = ' '.join(resultado.mensagens)
-        contexto['resultado'] = resultado
-    contexto['falha'] = 'erro' in contexto or not contexto['resultado'].sucesso
-    contexto['consultado_em'] = timezone.localtime()
+        _marcar_avisos_consultados(request, ambiente)
+        try:
+            resultado, contexto['novos'] = consultar_e_registrar(request.user, ambiente, credencial.login, senha_hash)
+        except mni.ErroMNI as exc:
+            contexto['erro'] = str(exc)
+        else:
+            if mni.falha_de_autenticacao(resultado):
+                # Senha recusada: descarta o hash e pede de novo.
+                senhas.esquecer(request, sistema)
+                contexto['pedir_senha'] = True
+                contexto['erro_senha'] = ' '.join(resultado.mensagens)
+            contexto['resultado'] = resultado
+        contexto['falha'] = 'erro' in contexto or not contexto['resultado'].sucesso
+        contexto['consultado_em'] = timezone.localtime()
     contexto['avisos'] = avisos_guardados(request.user, ambiente)
     contexto['ultima_consulta'] = ultima_consulta(request.user, ambiente)
     return render(request, 'judicial/sistemas/_avisos.html', contexto)

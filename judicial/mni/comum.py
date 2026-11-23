@@ -17,8 +17,6 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 
 from defusedxml import ElementTree
 
-from ..wsdl import rotulo  # noqa: F401 (reexportado: usado por Processo.informacoes_adicionais)
-
 TIPOS_COMUNICACAO = {
     'CIT': 'Citação',
     'INT': 'Intimação',
@@ -113,6 +111,12 @@ def formatar_numero_processo(n: str) -> str:
     if len(n) == 20 and n.isdigit():
         return f'{n[:7]}-{n[7:9]}.{n[9:13]}.{n[13]}.{n[14:16]}.{n[16:]}'
     return n
+
+
+def rotulo(nome):
+    """tipoInquerito -> 'Tipo inquerito' (rótulo genérico para parâmetros desconhecidos)."""
+    palavras = re.sub(r'(?<!^)(?=[A-Z])', ' ', nome).split()
+    return ' '.join([palavras[0].capitalize(), *(p.lower() for p in palavras[1:])]) if palavras else nome
 
 
 # --- dados interpretados --------------------------------------------------------------------

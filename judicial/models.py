@@ -31,12 +31,20 @@ class SistemaJudicial(models.Model):
         return self.nome
 
 
+class AmbienteQuerySet(models.QuerySet):
+    def ativos(self):
+        """Ambientes utilizáveis: ativos e de sistema ativo, já com o sistema carregado."""
+        return self.select_related('sistema').filter(ativo=True, sistema__ativo=True)
+
+
 class Ambiente(models.Model):
     """Ambiente de trabalho de um sistema judicial (ex.: 1º Grau, 2º Grau).
 
     Cada ambiente aponta para a URL do serviço de integração (WSDL do MNI) que
     será usada pelo EloJudicial quando o usuário trabalhar nesse ambiente.
     """
+
+    objects = AmbienteQuerySet.as_manager()
 
     sistema = models.ForeignKey(
         SistemaJudicial, on_delete=models.CASCADE, related_name='ambientes', verbose_name='sistema judicial',

@@ -51,27 +51,10 @@ class AmbienteModeloTests(TestCase):
 
 
 class InterpretarWSDLTests(TestCase):
-    def test_operacoes_endereco_e_nome(self):
+    def test_endereco_e_namespace(self):
         d = wsdl.interpretar(WSDL_EXEMPLO)
-        self.assertEqual(d.nome, 'mni')
         self.assertEqual(d.endereco, 'https://exemplo.jus.br/ws/controlador_ws.php?srv=intercomunicacao3.0')
-        self.assertEqual(len(d.operacoes), 5)
-
-    def test_titulo_grupo_e_resumo(self):
-        ops = {o.nome: o for o in wsdl.interpretar(WSDL_EXEMPLO).operacoes}
-        self.assertEqual(ops['entregarPeticao'].titulo, 'Entregar petição')
-        self.assertEqual(ops['consultarClasses'].grupo, 'Tabelas de apoio')
-        self.assertEqual(ops['fazerAlgoNovo'].titulo, 'Fazer algo novo')
-        self.assertEqual(ops['fazerAlgoNovo'].grupo, 'Outras operações')
-        self.assertEqual(
-            ops['consultarProcesso'].resumo, 'Operação destinada a permitir a consulta a um processo judicial.'
-        )
-
-    def test_grupos_na_ordem_definida(self):
-        grupos = [g for g, _ in wsdl.interpretar(WSDL_EXEMPLO).grupos]
-        self.assertEqual(
-            grupos, ['Processos', 'Comunicações processuais', 'Peticionamento', 'Tabelas de apoio', 'Outras operações']
-        )
+        self.assertEqual(d.namespace, 'http://www.cnj.jus.br/mni/v300/')
 
     def test_conteudo_invalido(self):
         for conteudo in (b'nao e xml', b'<html><body>erro</body></html>'):

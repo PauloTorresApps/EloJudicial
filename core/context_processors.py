@@ -2,6 +2,8 @@ from django.contrib import admin
 
 from unfold.widgets import BASE_CLASSES
 
+from judicial.views_processos import SESSAO_BUSCA
+
 from .forms import INPUT_CLASSES
 
 CLASSES_INPUT_BASE = ' '.join(BASE_CLASSES)  # sem padding/largura, para campos com ícone
@@ -16,7 +18,7 @@ def unfold(request):
     match = getattr(request, 'resolver_match', None)
     if match is not None and match.namespace == 'admin':
         return {}
-    numero_busca = request.session.pop('busca_processo', '') if hasattr(request, 'session') else ''
+    numero_busca = request.session.pop(SESSAO_BUSCA, '') if hasattr(request, 'session') else ''
     return {
         **admin.site.each_context(request),
         'classes_input': INPUT_CLASSES,

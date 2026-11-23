@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db.models import Count
 from unfold.admin import ModelAdmin, TabularInline
 
 from .models import Ambiente, SistemaJudicial
@@ -24,13 +25,19 @@ class SistemaJudicialAdmin(ModelAdmin):
     readonly_fields = ['criado_em', 'atualizado_em']
     inlines = [AmbienteInline]
 
-    @admin.display(description='ambientes')
-    def total_ambientes(self, obj):
-        return obj.ambientes.count()
+    def get_queryset(self, request):
+        # Contagens numa só consulta, em vez de duas por linha da listagem.
+        return super().get_queryset(request).annotate(
+            n_ambientes=Count('ambientes', distinct=True), n_credenciais=Count('credenciais', distinct=True),
+        )
 
-    @admin.display(description='usuários cadastrados')
+    @admin.display(description='ambientes', ordering='n_ambientes')
+    def total_ambientes(self, obj):
+        return obj.n_ambientes
+
+    @admin.display(description='usuários cadastrados', ordering='n_credenciais')
     def total_credenciais(self, obj):
-        return obj.credenciais.count()
+        return obj.n_credenciais
 
 
 @admin.register(Ambiente)
