@@ -30,6 +30,10 @@ class SistemaJudicial(models.Model):
     def __str__(self):
         return self.nome
 
+    def codigos_marcados(self) -> set[str]:
+        """Códigos locais dos tipos de documento que já vêm selecionados (ver TipoDocumentoMarcado)."""
+        return set(self.tipos_documento_marcados.values_list('codigo', flat=True))
+
 
 class AmbienteQuerySet(models.QuerySet):
     def ativos(self):
@@ -76,6 +80,38 @@ class Ambiente(models.Model):
 
     def __str__(self):
         return f'{self.sistema} — {self.descricao}'
+
+
+class TipoDocumentoMarcado(models.Model):
+    """Tipo de documento que já vem selecionado na tabela de eventos dos processos do sistema.
+
+    O código é o LOCAL, da tabela própria do tribunal (codigoTipoDocumentoLocal no MNI 3.0,
+    tipoDocumentoLocal no 2.2.2): por isso a lista é de cada sistema. Sem lista, nenhum
+    documento vem selecionado.
+    """
+
+    sistema = models.ForeignKey(
+        SistemaJudicial, on_delete=models.CASCADE, related_name='tipos_documento_marcados',
+        verbose_name='sistema judicial',
+    )
+    codigo = models.CharField(
+        'código', max_length=20, help_text='Código local do tipo de documento, como o tribunal o informa no MNI.',
+    )
+    descricao = models.CharField('descrição', max_length=200, blank=True, help_text='Só para referência.')
+
+    class Meta:
+        verbose_name = 'tipo de documento marcado'
+        verbose_name_plural = 'tipos de documento marcados'
+        ordering = ['codigo']  # sempre listados dentro de um sistema (sem JOIN só para ordenar)
+        constraints = [
+            models.UniqueConstraint(
+                fields=['sistema', 'codigo'], name='judicial_tipo_documento_marcado_unico',
+                violation_error_message='Este código já está na lista deste sistema.',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.codigo} — {self.descricao}' if self.descricao else self.codigo
 
 
 class Credencial(models.Model):

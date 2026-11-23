@@ -10,9 +10,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from judicial import mni, wsdl
-from judicial.models import SistemaJudicial
+from judicial.models import SistemaJudicial, TipoDocumentoMarcado
 from judicial.preferencias import definir_ambiente_padrao
-from judicial.selecao_documentos import TIPOS_MARCADOS
 
 from .test_avisos import RESPOSTA_FALHA_AUTH, WSDL, _Resposta
 
@@ -461,23 +460,35 @@ class _Toggles(HTMLParser):
 class SelecaoDeDocumentosTests(Base):
     """Cada documento dos eventos (inclusive vinculado) tem um toggle, marcado conforme o tipo local."""
 
-    def test_regra_de_marcacao(self):
-        self.assertIn('14', TIPOS_MARCADOS)  # SENTENÇA
-        self.assertIn('82400233', TIPOS_MARCADOS)  # RECURSO INOMINADO
-        self.assertNotIn('16', TIPOS_MARCADOS)
-        self.assertNotIn('', TIPOS_MARCADOS)
+    # d1 passa a ser do tipo local 1 (PETIÇÃO INICIAL, na lista do EPROC TJTO); o vinculado d1a (tipo 9),
+    # d2 (sem tipo) e d3 (tipo 16) não estão na lista.
+    RESPOSTA = RESPOSTA_PROCESSO.replace(b'<ns1:codigoTipoDocumentoLocal>58<', b'<ns1:codigoTipoDocumentoLocal>1<')
+
+    def test_lista_do_eproc_tjto_carregada_e_demais_sistemas_sem_lista(self):
+        tjto = self.eproc.codigos_marcados()
+        self.assertTrue({'14', '82400233'} <= tjto)  # SENTENÇA, RECURSO INOMINADO
+        self.assertNotIn('16', tjto)
+        # Cada tribunal tem a sua tabela de códigos: a lista do TJTO não vale para os outros.
+        self.assertEqual(SistemaJudicial.objects.get(nome='PJE TJBA').codigos_marcados(), set())
 
     def test_toggle_marcado_so_para_os_tipos_da_lista(self):
-        # d1 passa a ser do tipo local 1 (PETIÇÃO INICIAL, na lista); o vinculado d1a (tipo 9),
-        # d2 (sem tipo) e d3 (tipo 16) não estão na lista.
-        conteudo = RESPOSTA_PROCESSO.replace(
-            b'<ns1:codigoTipoDocumentoLocal>58<', b'<ns1:codigoTipoDocumentoLocal>1<',
-        )
-        resp = self.dados_do_processo(mni.ClienteMNI300.interpretar_processo(conteudo))
+        resp = self.dados_do_processo(mni.ClienteMNI300.interpretar_processo(self.RESPOSTA))
         self.assertEqual(_Toggles(resp.content.decode()).marcados,
                          {'d1': True, 'd1a': False, 'd2': False, 'd3': False})
         # Contador no topo da tabela (o navegador o atualiza a cada toggle).
         self.assertContains(resp, 'x-text="resumoSelecao">1/4 arquivos selecionados<', html=False)
+
+    def test_sistema_sem_lista_nao_marca_nenhum_documento(self):
+        self.eproc.tipos_documento_marcados.all().delete()
+        resp = self.dados_do_processo(mni.ClienteMNI300.interpretar_processo(self.RESPOSTA))
+        self.assertEqual(set(_Toggles(resp.content.decode()).marcados.values()), {False})
+        self.assertContains(resp, '0/4 arquivos selecionados')
+
+    def test_lista_editada_no_admin_vale_na_hora(self):
+        TipoDocumentoMarcado.objects.create(sistema=self.eproc, codigo='16', descricao='CERTIDÃO')
+        resp = self.dados_do_processo(mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO))
+        self.assertEqual(_Toggles(resp.content.decode()).marcados,
+                         {'d1': False, 'd1a': False, 'd2': False, 'd3': True})
 
     def test_sem_documentos_nao_mostra_o_contador(self):
         resultado = mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO)

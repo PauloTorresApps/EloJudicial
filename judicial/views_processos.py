@@ -96,8 +96,7 @@ def processo_dados(request, sistema_pk, pk, numero):
             if not resultado.processo.numero:
                 resultado.processo.numero = numero
             mni.descrever_competencia(ambiente, resultado.processo)
-            (contexto['documentos_marcados'], contexto['arquivos_selecionados'],
-             contexto['total_arquivos']) = selecao_inicial(resultado.processo)
+            contexto.update(selecao_inicial(resultado.processo, sistema.codigos_marcados()))
         if mni.falha_de_autenticacao(resultado):
             senhas.esquecer(request, sistema)
             contexto['pedir_senha'] = True

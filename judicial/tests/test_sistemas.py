@@ -161,19 +161,32 @@ class AdminAmbientesTests(TestCase):
         eproc = SistemaJudicial.objects.get(nome='EPROC TJTO')
         resp = self.client.get(reverse('admin:judicial_sistemajudicial_change', args=[eproc.pk]))
         self.assertContains(resp, URL_1G)
+        # Tipos de documento marcados: paginados (a lista do TJTO tem 143 códigos).
+        self.assertContains(resp, 'name="tipos_documento_marcados-TOTAL_FORMS" value="25"')
         for nome in ('admin:judicial_ambiente_changelist', 'admin:judicial_ambiente_add'):
             self.assertEqual(self.client.get(reverse(nome)).status_code, 200)
 
-    def test_admin_adiciona_ambiente_pelo_inline(self):
+    def salvar_pje_no_admin(self, ambientes=(), tipos=()):
+        """POST do formulário do sistema "PJe" no admin, com os inlines de ambientes e de tipos marcados."""
         chefe = get_user_model().objects.create_superuser('chefe', email='chefe@exemplo.com', password='x')
         self.client.force_login(chefe)
         pje = SistemaJudicial.objects.get(nome='PJe')
-        resp = self.client.post(reverse('admin:judicial_sistemajudicial_change', args=[pje.pk]), {
-            'nome': 'PJe', 'descricao': pje.descricao, 'url': '', 'ativo': 'on',
-            'ambientes-TOTAL_FORMS': '1', 'ambientes-INITIAL_FORMS': '0',
-            'ambientes-MIN_NUM_FORMS': '0', 'ambientes-MAX_NUM_FORMS': '1000',
-            'ambientes-0-descricao': '1º Grau', 'ambientes-0-url_servico': 'https://pje1g.jus.br/ws?wsdl',
-            'ambientes-0-ordem': '1', 'ambientes-0-ativo': 'on',
-        })
+        dados = {'nome': 'PJe', 'descricao': pje.descricao, 'url': '', 'ativo': 'on'}
+        for prefixo, linhas in (('ambientes', ambientes), ('tipos_documento_marcados', tipos)):
+            dados.update({f'{prefixo}-TOTAL_FORMS': str(len(linhas)), f'{prefixo}-INITIAL_FORMS': '0',
+                          f'{prefixo}-MIN_NUM_FORMS': '0', f'{prefixo}-MAX_NUM_FORMS': '1000'})
+            for i, linha in enumerate(linhas):
+                dados.update({f'{prefixo}-{i}-{campo}': valor for campo, valor in linha.items()})
+        resp = self.client.post(reverse('admin:judicial_sistemajudicial_change', args=[pje.pk]), dados)
         self.assertEqual(resp.status_code, 302, resp.content[:500])
+        return pje
+
+    def test_admin_adiciona_ambiente_pelo_inline(self):
+        pje = self.salvar_pje_no_admin(ambientes=[
+            {'descricao': '1º Grau', 'url_servico': 'https://pje1g.jus.br/ws?wsdl', 'ordem': '1', 'ativo': 'on'},
+        ])
         self.assertEqual(pje.ambientes.get().url_servico, 'https://pje1g.jus.br/ws?wsdl')
+
+    def test_admin_cadastra_tipos_de_documento_marcados_pelo_inline(self):
+        pje = self.salvar_pje_no_admin(tipos=[{'codigo': '62', 'descricao': 'SENTENÇA'}])
+        self.assertEqual(list(pje.tipos_documento_marcados.values_list('codigo', 'descricao')), [('62', 'SENTENÇA')])
