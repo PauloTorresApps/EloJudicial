@@ -12,18 +12,17 @@ Usado por PJe, Projudi, e-SAJ, eproc (srv=intercomunicacao2.2) e serviços próp
 - Datas no formato AAAAMMDDHHMMSS, sem fuso: são horários de Brasília.
 """
 
-from xml.etree.ElementTree import Element, SubElement, tostring
+from xml.etree.ElementTree import SubElement, tostring
 
 from django.utils import timezone
 
 from .base import ClienteMNI
 from .comum import (
     Aviso, ConteudoDocumento, Documento, Movimento, Parte, Polo, Processo, Representante, ResultadoAvisos,
-    ResultadoDocumentos, ResultadoProcesso, conteudo_binario, corpo_resposta, data, filho, filhos, numero,
-    ordem_data, organizar_processo, separar_mtom, texto, textos,
+    ResultadoDocumentos, ResultadoProcesso, conteudo_binario, corpo_resposta, data, envelope_soap, filho, filhos,
+    numero, ordem_data, organizar_processo, separar_mtom, serializar, texto, textos,
 )
 
-NS_SOAP = 'http://schemas.xmlsoap.org/soap/envelope/'
 NS_SERVICO = 'http://www.cnj.jus.br/servico-intercomunicacao-2.2.2/'
 NS_TIPOS_SERVICO = 'http://www.cnj.jus.br/tipos-servico-intercomunicacao-2.2.2'
 
@@ -39,7 +38,7 @@ class ClienteMNI222(ClienteMNI):
     @staticmethod
     def envelope_avisos_pendentes(login, senha):
         env, _ = _requisicao('consultarAvisosPendentes', login, senha)
-        return tostring(env, encoding='utf-8', xml_declaration=True)
+        return serializar(env)
 
     @staticmethod
     def envelope_consultar_processo(login, senha, numero, incluir_documentos=True):
@@ -109,9 +108,8 @@ class ClienteMNI222(ClienteMNI):
         resposta = corpo_resposta(conteudo)
         sucesso, mensagens = _situacao(resposta)
         documentos = []
-        pendentes = list(filhos(filho(resposta, 'processo'), 'documento'))
-        while pendentes:
-            d = pendentes.pop(0)
+        pendentes = filhos(filho(resposta, 'processo'), 'documento')
+        for d in pendentes:  # busca em largura: a lista cresce com os vinculados durante o laço
             pendentes.extend(filhos(d, 'documentoVinculado'))
             dados = conteudo_binario(filho(d, 'conteudo'), anexos)
             if dados:
@@ -124,9 +122,7 @@ class ClienteMNI222(ClienteMNI):
 # --- auxiliares do MNI 2.2.2 ---------------------------------------------------------------------
 
 def _requisicao(nome, login, senha):
-    env = Element(f'{{{NS_SOAP}}}Envelope')
-    corpo = SubElement(env, f'{{{NS_SOAP}}}Body')
-    req = SubElement(corpo, f'{{{NS_SERVICO}}}{nome}')
+    env, req = envelope_soap(f'{{{NS_SERVICO}}}{nome}')
     SubElement(req, f'{{{NS_TIPOS_SERVICO}}}idConsultante').text = login
     SubElement(req, f'{{{NS_TIPOS_SERVICO}}}senhaConsultante').text = senha
     return env, req
@@ -139,7 +135,7 @@ def _envelope_processo(login, senha, numero, *, movimentos, cabecalho, documento
         SubElement(req, f'{{{NS_TIPOS_SERVICO}}}{nome}').text = 'true' if valor else 'false'
     if id_documento is not None:
         SubElement(req, f'{{{NS_TIPOS_SERVICO}}}documento').text = id_documento
-    return tostring(env, encoding='utf-8', xml_declaration=True)
+    return serializar(env)
 
 
 def _situacao(resposta):

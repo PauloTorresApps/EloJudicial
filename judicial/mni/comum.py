@@ -13,8 +13,11 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from urllib.parse import unquote
+from xml.etree.ElementTree import Element, SubElement, tostring
 
 from defusedxml import ElementTree
+
+from ..wsdl import rotulo  # noqa: F401 (reexportado: usado por Processo.informacoes_adicionais)
 
 TIPOS_COMUNICACAO = {
     'CIT': 'Citação',
@@ -58,6 +61,7 @@ PRIORIDADES = {'IDOSO': 'Idoso', 'REU_PRESO': 'Réu preso', 'PERECIMENTO': 'Pere
 FALHA_AUTENTICACAO = re.compile(r'autentica|senha|usu[aá]rio.*inv[aá]lid', re.IGNORECASE)
 UNIDADES_PRAZO = {'HOR': ('hora', 'horas'), 'DIA': ('dia', 'dias'), 'MES': ('mês', 'meses'), 'ANO': ('ano', 'anos')}
 NS_XOP = 'http://www.w3.org/2004/08/xop/include'
+NS_SOAP = 'http://schemas.xmlsoap.org/soap/envelope/'
 
 
 class ErroMNI(Exception):
@@ -109,12 +113,6 @@ def formatar_numero_processo(n: str) -> str:
     if len(n) == 20 and n.isdigit():
         return f'{n[:7]}-{n[7:9]}.{n[9:13]}.{n[13]}.{n[14:16]}.{n[16:]}'
     return n
-
-
-def rotulo(nome):
-    """tipoInquerito -> 'Tipo inquerito' (rótulo genérico para parâmetros desconhecidos)."""
-    palavras = re.sub(r'(?<!^)(?=[A-Z])', ' ', nome).split()
-    return ' '.join([palavras[0].capitalize(), *(p.lower() for p in palavras[1:])]) if palavras else nome
 
 
 # --- dados interpretados --------------------------------------------------------------------
@@ -338,10 +336,12 @@ def organizar_processo(processo: Processo, documentos: list[Documento]):
         if d.id_movimento:
             por_movimento.setdefault(d.id_movimento, []).append(d)
     for mov in processo.movimentos:
-        docs = list(por_movimento.get(mov.id, [])) if mov.id else []
+        docs = list(por_movimento.get(mov.id, []))
+        incluidos = {d.id for d in docs}
         for id_doc in mov.ids_documentos:
-            if id_doc in por_id and por_id[id_doc] not in docs:
+            if id_doc in por_id and id_doc not in incluidos:
                 docs.append(por_id[id_doc])
+                incluidos.add(id_doc)
         mov.documentos = docs
     processo.movimentos.sort(key=lambda mv: ordem_data(mv.data_hora))
     for i, mv in enumerate(processo.movimentos, start=1):
@@ -378,13 +378,15 @@ def texto(el, *caminho):
 
 def textos(el, nome):
     """Textos não vazios dos filhos com esse nome."""
-    return [(f.text or '').strip() for f in filhos(el, nome) if (f.text or '').strip()]
+    return [t for f in filhos(el, nome) if (t := (f.text or '').strip())]
 
 
 def data(valor):
     if not valor:
         return None
-    for formato in ('%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S', '%Y%m%d%H%M%S'):
+    # Só dígitos (AAAAMMDDHHMMSS, MNI 2.2.2) nunca casa com os formatos ISO: vai direto ao seu.
+    formatos = ('%Y%m%d%H%M%S',) if valor.isdigit() else ('%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S')
+    for formato in formatos:
         try:
             return datetime.strptime(valor.replace('Z', '+00:00'), formato)
         except ValueError:
@@ -402,6 +404,17 @@ def numero(valor, tipo=float):
         return tipo(valor) if valor else None
     except ValueError:
         return None
+
+
+def envelope_soap(requisicao):
+    """Envelope SOAP 1.1 vazio com o elemento de requisição (nome qualificado) no Body: (envelope, requisição)."""
+    env = Element(f'{{{NS_SOAP}}}Envelope')
+    req = SubElement(SubElement(env, f'{{{NS_SOAP}}}Body'), requisicao)
+    return env, req
+
+
+def serializar(env) -> bytes:
+    return tostring(env, encoding='utf-8', xml_declaration=True)
 
 
 def corpo_resposta(conteudo):

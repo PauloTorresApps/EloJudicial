@@ -12,6 +12,7 @@ import urllib.error
 import urllib.request
 from abc import ABC, abstractmethod
 
+from ..wsdl import USER_AGENT
 from .comum import ErroMNI, ResultadoAvisos, ResultadoDocumentos, ResultadoProcesso, RespostaGrandeDemais
 
 logger = logging.getLogger('judicial.mni')
@@ -107,9 +108,8 @@ class ClienteMNI(ABC):
         requisicao = urllib.request.Request(
             self.endereco, data=corpo, method='POST',
             headers={'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': f'"{self.PREFIXO_ACAO}{operacao}"',
-                     'User-Agent': 'EloJudicial/1.0 (+integracao MNI)'},
+                     'User-Agent': USER_AGENT},
         )
-        tipo = ''
         try:
             with urllib.request.urlopen(requisicao, timeout=TIMEOUT) as resposta:
                 conteudo = resposta.read(limite + 1)

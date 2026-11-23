@@ -18,6 +18,13 @@ NS = {
 }
 TIMEOUT = 15  # segundos
 TAMANHO_MAXIMO = 5 * 1024 * 1024  # 5 MB
+USER_AGENT = 'EloJudicial/1.0 (+integracao MNI)'
+
+
+def rotulo(nome):
+    """fazerAlgumaCoisa -> 'Fazer alguma coisa' (rótulo legível a partir de um nome em camelCase)."""
+    palavras = re.sub(r'(?<!^)(?=[A-Z])', ' ', nome).split()
+    return ' '.join([palavras[0].capitalize(), *(p.lower() for p in palavras[1:])]) if palavras else nome
 CACHE_SEGUNDOS = 60 * 60
 
 # Ordem de exibição dos grupos.
@@ -59,9 +66,7 @@ class Operacao:
     def titulo(self):
         if self.nome in OPERACOES_MNI:
             return OPERACOES_MNI[self.nome][0]
-        # fazerAlgumaCoisa -> 'Fazer alguma coisa'
-        palavras = re.sub(r'(?<!^)(?=[A-Z])', ' ', self.nome).split()
-        return ' '.join([palavras[0].capitalize(), *(p.lower() for p in palavras[1:])])
+        return rotulo(self.nome)
 
     @property
     def grupo(self):
@@ -92,7 +97,7 @@ class DescricaoServico:
 
 
 def _baixar(url):
-    requisicao = urllib.request.Request(url, headers={'User-Agent': 'EloJudicial/1.0 (+integracao MNI)'})
+    requisicao = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
     try:
         with urllib.request.urlopen(requisicao, timeout=TIMEOUT) as resposta:
             conteudo = resposta.read(TAMANHO_MAXIMO + 1)

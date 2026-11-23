@@ -5,20 +5,19 @@ consultarCompetencias. Usado pelo eproc e pelo PJe da Justiça do Trabalho.
 """
 
 import logging
-from xml.etree.ElementTree import Element, SubElement, tostring
+from xml.etree.ElementTree import SubElement, tostring
 
 from django.core.cache import cache
 
 from .base import ClienteMNI
 from .comum import (
     Aviso, ConteudoDocumento, Documento, ErroMNI, Movimento, Parte, Polo, Processo, Representante,
-    ResultadoAvisos, ResultadoDocumentos, ResultadoProcesso, conteudo_binario, corpo_resposta, data, filho,
-    filhos, numero, ordem_data, organizar_processo, separar_mtom, texto, textos,
+    ResultadoAvisos, ResultadoDocumentos, ResultadoProcesso, conteudo_binario, corpo_resposta, data, envelope_soap,
+    filho, filhos, numero, ordem_data, organizar_processo, separar_mtom, serializar, texto, textos,
 )
 
 logger = logging.getLogger('judicial.mni')
 
-NS_SOAP = 'http://schemas.xmlsoap.org/soap/envelope/'
 NS_MNI = 'http://www.cnj.jus.br/mni/v300/'
 NS_SERVICO = 'http://www.cnj.jus.br/mni/v300/tipos-servico-intercomunicacao'
 NS_TIPOS = 'http://www.cnj.jus.br/mni/v300/intercomunicacao'
@@ -36,7 +35,7 @@ class ClienteMNI300(ClienteMNI):
     @staticmethod
     def envelope_avisos_pendentes(login, senha):
         env, _ = _requisicao('requisicaoConsultarAvisosPendentes', login, senha)
-        return tostring(env, encoding='utf-8', xml_declaration=True)
+        return serializar(env)
 
     @staticmethod
     def envelope_consultar_processo(login, senha, numero, incluir_documentos=True):
@@ -49,23 +48,21 @@ class ClienteMNI300(ClienteMNI):
         # Parâmetros adicionais (último elemento da sequência): pede as descrições
         # de classe, assuntos, movimentos etc., além dos códigos.
         SubElement(req, f'{{{NS_SERVICO}}}parametros', {'nome': 'incluirDescricoes', 'valor': 'true'})
-        return tostring(env, encoding='utf-8', xml_declaration=True)
+        return serializar(env)
 
     @staticmethod
     def envelope_consultar_documento(login, senha, numero, id_documento):
         env, req = _requisicao('requisicaoConsultarDocumentosProcesso', login, senha)
         SubElement(req, f'{{{NS_SERVICO}}}numeroProcesso').text = numero
         SubElement(req, f'{{{NS_SERVICO}}}idDocumento').text = id_documento
-        return tostring(env, encoding='utf-8', xml_declaration=True)
+        return serializar(env)
 
     @staticmethod
     def envelope_consultar_competencias(codigo_localidade):
         # Operação de suporte: não exige autenticação do consultante.
-        env = Element(f'{{{NS_SOAP}}}Envelope')
-        corpo = SubElement(env, f'{{{NS_SOAP}}}Body')
-        req = SubElement(corpo, f'{{{NS_MNI}}}requisicaoConsultarCompetencias')
+        env, req = envelope_soap(f'{{{NS_MNI}}}requisicaoConsultarCompetencias')
         SubElement(req, f'{{{NS_SERVICO}}}codigoLocalidade').text = codigo_localidade
-        return tostring(env, encoding='utf-8', xml_declaration=True)
+        return serializar(env)
 
     # --- interpretação -------------------------------------------------------------------------
 
@@ -108,7 +105,7 @@ class ClienteMNI300(ClienteMNI):
             _cabecalho(processo, basicos)
         for m in filhos(el, 'movimento'):
             complementos = textos(m, 'complemento')
-            descricao = _descricao_movimento(m)
+            descricao = _descricao_movimento(m, complementos)
             processo.movimentos.append(Movimento(
                 data_hora=data(m.get('dataHora', '')),
                 descricao=descricao,
@@ -176,9 +173,7 @@ class ClienteMNI300(ClienteMNI):
 # --- auxiliares do MNI 3.0 -------------------------------------------------------------------------
 
 def _requisicao(nome, login, senha):
-    env = Element(f'{{{NS_SOAP}}}Envelope')
-    corpo = SubElement(env, f'{{{NS_SOAP}}}Body')
-    req = SubElement(corpo, f'{{{NS_MNI}}}{nome}')
+    env, req = envelope_soap(f'{{{NS_MNI}}}{nome}')
     consultante = SubElement(req, f'{{{NS_SERVICO}}}consultante')
     auth = SubElement(consultante, f'{{{NS_TIPOS}}}autenticacaoSimples')
     SubElement(auth, f'{{{NS_TIPOS}}}usuario').text = login
@@ -199,15 +194,15 @@ def _campo(el, nome):
 
 
 def _cabecalho(processo, basicos):
-    processo.classe = texto(basicos, 'classeProcessual') or basicos.get('classeProcessual', '')
+    processo.classe = _campo(basicos, 'classeProcessual')
     processo.competencia = texto(basicos, 'competencia')
     processo.codigo_localidade = texto(basicos, 'codigoLocalidade')
     orgao = filho(basicos, 'orgaoJulgador')
     if orgao is not None:
         processo.orgao_julgador = texto(orgao, 'nome') or orgao.get('nomeOrgao', '')
-    processo.data_ajuizamento = data(texto(basicos, 'dataAjuizamento') or basicos.get('dataAjuizamento', ''))
+    processo.data_ajuizamento = data(_campo(basicos, 'dataAjuizamento'))
     processo.valor_causa = numero(texto(basicos, 'valorCausa'))
-    processo.nivel_sigilo = numero(texto(basicos, 'nivelSigilo') or basicos.get('nivelSigilo', ''), int)
+    processo.nivel_sigilo = numero(_campo(basicos, 'nivelSigilo'), int)
     processo.outros_numeros = textos(basicos, 'outrosNumeros')
     processo.prioridades = textos(basicos, 'prioridade')
     processo.parametros = [
@@ -256,11 +251,10 @@ def _documento(el) -> Documento:
     )
 
 
-def _descricao_movimento(m):
+def _descricao_movimento(m, complementos):
     movimento_local = filho(m, 'movimentoLocal')
     if movimento_local is not None and movimento_local.get('descricao'):
         return movimento_local.get('descricao')
-    complementos = textos(m, 'complemento')
     if complementos:
         return complementos[0]
     nacional = filho(m, 'movimentoNacional')
