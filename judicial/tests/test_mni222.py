@@ -197,9 +197,8 @@ class ProcessoTests(Base):
         )
         p = mni.ClienteMNI222.interpretar_processo(resposta).processo
         _, decisao, distribuicao = p.movimentos
-        inicial = distribuicao.documentos[0]
-        self.assertEqual((inicial.tipo_local, inicial.selecionado_por_padrao), ('14', True))
-        self.assertEqual((decisao.documentos[0].tipo_local, decisao.documentos[0].selecionado_por_padrao), ('', False))
+        self.assertEqual(distribuicao.documentos[0].tipo_local, '14')  # e não o tipoDocumento (58)
+        self.assertEqual(decisao.documentos[0].tipo_local, '')
 
     def test_nao_encontrado(self):
         resposta = RESPOSTA_FALHA_AUTH.replace(b'Usu\xc3\xa1rio ou senha inv\xc3\xa1lidos.', b'Processo n\xc3\xa3o encontrado')

@@ -114,7 +114,16 @@
 <section id="eventos" class="bg-white border border-base-200 overflow-hidden rounded-default shadow-xs dark:bg-base-900 dark:border-base-800"
          x-data="eventosPaginados()">
     <div class="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center justify-between">
-        <h2 class="font-semibold text-base text-important">Eventos <span class="font-normal text-subtle text-sm">({{ total }})</span></h2>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 items-baseline">
+            <h2 class="font-semibold text-base text-important">Eventos <span class="font-normal text-subtle text-sm">({{ total }})</span></h2>
+            {% if total_arquivos %}
+                {# Atualizado no navegador a cada toggle (eventos.js); conta todas as páginas, não só a visível. #}
+                <p id="arquivos-selecionados" class="flex gap-1 items-center tabular-nums text-sm text-subtle" aria-live="polite">
+                    <span class="material-symbols-outlined text-sm">check_circle</span>
+                    <span x-text="resumoSelecao">{{ arquivos_selecionados }}/{{ total_arquivos }} arquivo{{ total_arquivos|pluralize }} selecionado{{ total_arquivos|pluralize }}</span>
+                </p>
+            {% endif %}
+        </div>
         <div class="flex flex-col gap-3 min-w-0 sm:flex-row sm:items-center">
             {% if total > 10 %}
                 <label class="flex gap-2 items-center shrink-0 text-subtle whitespace-nowrap">
@@ -143,7 +152,8 @@
                         <th class="border-b border-t border-base-200 font-semibold px-4 py-2 text-left whitespace-nowrap dark:border-base-800">Documentos</th>
                     </tr>
                 </thead>
-                <tbody x-ref="corpo">
+                {# spaceless: processos com milhares de eventos; a indentação seria metade do HTML (e nós de texto no DOM). #}
+                <tbody x-ref="corpo" x-on:change="contarSelecao($event.target)">{% spaceless %}
                     {% for mov in p.movimentos %}
                         <tr class="{% cycle '' 'bg-base-50 dark:bg-white/[.02]' %}">
                             <td class="align-top border-b border-base-200 font-semibold px-4 py-2 text-important dark:border-base-800">{{ mov.numero }}</td>
@@ -186,7 +196,7 @@
                             </td>
                         </tr>
                     {% endfor %}
-                </tbody>
+                {% endspaceless %}</tbody>
             </table>
         </div>
         <p x-cloak x-show="!total" class="px-4 py-6 text-center text-subtle">Nenhum evento encontrado para esta pesquisa.</p>

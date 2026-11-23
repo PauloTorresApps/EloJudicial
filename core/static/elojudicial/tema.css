@@ -179,3 +179,64 @@ html.dark:root {
     text-decoration: underline;
     text-underline-offset: 2px;
 }
+
+/* ---------- Toggle (switch) ----------
+ * Mesmo visual do switch do Unfold (unfold.widgets.SWITCH_CLASSES), numa classe curta.
+ * Usado nos toggles dos documentos da tabela de eventos: um processo pode ter milhares
+ * de documentos, e repetir as ~400 bytes de classes do Unfold em cada um pesaria no HTML.
+ */
+.elo-switch {
+    appearance: none;
+    background-color: var(--color-base-300);
+    border-radius: 9999px;
+    cursor: pointer;
+    display: block;
+    height: calc(var(--spacing, 0.25rem) * 5);
+    min-width: calc(var(--spacing, 0.25rem) * 8);
+    position: relative;
+    width: calc(var(--spacing, 0.25rem) * 8);
+}
+
+.elo-switch::after {
+    background-color: var(--color-white, #fff);
+    border-radius: 9999px;
+    box-shadow: 0 1px 2px 0 #0000000d;
+    content: '';
+    height: calc(var(--spacing, 0.25rem) * 3);
+    left: var(--spacing, 0.25rem);
+    position: absolute;
+    top: var(--spacing, 0.25rem);
+    transition: all var(--default-transition-duration, 150ms) var(--default-transition-timing-function, ease);
+    width: calc(var(--spacing, 0.25rem) * 3);
+}
+
+.elo-switch:checked {
+    background-color: var(--color-green-500);
+}
+
+.elo-switch:checked::after {
+    left: calc(var(--spacing, 0.25rem) * 4);
+}
+
+.elo-switch:focus {
+    outline: none;
+}
+
+/* O Unfold remove o contorno de foco; aqui ele volta só para quem navega pelo teclado. */
+.elo-switch:focus-visible {
+    outline: 2px solid var(--color-primary-600);
+    outline-offset: 2px;
+}
+
+.elo-switch:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+html.dark .elo-switch {
+    background-color: var(--color-base-600);
+}
+
+html.dark .elo-switch:checked {
+    background-color: var(--color-green-700);
+}

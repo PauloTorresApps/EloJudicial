@@ -1,3 +1,2 @@
-{# Toggle de seleção de um documento na tabela de eventos. Vem marcado se o tipo do documento está em mni/tipos_documento.py. #}
-<input type="checkbox" name="documentos" value="{{ doc.id }}" class="{{ classes_switch }}"{% if doc.selecionado_por_padrao %} checked{% endif %}
-       aria-label="Selecionar {{ doc.nome }}" title="Selecionar {{ doc.nome }}">
+{# Toggle de seleção de um documento na tabela de eventos (estilo .elo-switch em tema.css). A seleção inicial vem de judicial/selecao_documentos.py. #}
+<input type="checkbox" name="documentos" value="{{ doc.id }}" class="elo-switch"{% if doc.id in documentos_marcados %} checked{% endif %} aria-label="Selecionar {{ doc.nome }}">

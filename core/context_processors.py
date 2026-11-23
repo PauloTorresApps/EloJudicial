@@ -1,13 +1,12 @@
 from django.contrib import admin
 
-from unfold.widgets import BASE_CLASSES, SWITCH_CLASSES
+from unfold.widgets import BASE_CLASSES
 
 from judicial.views_processos import SESSAO_BUSCA
 
 from .forms import INPUT_CLASSES
 
 CLASSES_INPUT_BASE = ' '.join(BASE_CLASSES)  # sem padding/largura, para campos com ícone
-CLASSES_SWITCH = ' '.join(SWITCH_CLASSES)  # checkbox no estilo toggle do Unfold
 
 
 def unfold(request):
@@ -24,6 +23,5 @@ def unfold(request):
         **admin.site.each_context(request),
         'classes_input': INPUT_CLASSES,
         'classes_input_base': CLASSES_INPUT_BASE,
-        'classes_switch': CLASSES_SWITCH,
         'numero_busca': numero_busca,  # número inválido digitado na barra (para correção)
     }

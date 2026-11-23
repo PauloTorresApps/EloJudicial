@@ -1,6 +1,6 @@
-import re
 import urllib.error
 from hashlib import sha256
+from html.parser import HTMLParser
 from pathlib import Path
 from unittest import mock
 
@@ -12,6 +12,7 @@ from django.urls import reverse
 from judicial import mni, wsdl
 from judicial.models import SistemaJudicial
 from judicial.preferencias import definir_ambiente_padrao
+from judicial.selecao_documentos import TIPOS_MARCADOS
 
 from .test_avisos import RESPOSTA_FALHA_AUTH, WSDL, _Resposta
 
@@ -136,12 +137,6 @@ class ClienteConsultarProcessoTests(TestCase):
         self.assertEqual((inicial.tipo_local, inicial.vinculados[0].tipo_local), ('58', '9'))
         self.assertEqual(evento[3].documentos[0].tipo_local, '16')  # e não o codigoTipoDocumento (60)
 
-    def test_documento_selecionado_por_padrao_pelo_tipo_local(self):
-        self.assertTrue(mni.Documento(id='1', tipo_local='14').selecionado_por_padrao)  # SENTENÇA
-        self.assertTrue(mni.Documento(id='1', tipo_local='82400233').selecionado_por_padrao)  # RECURSO INOMINADO
-        self.assertFalse(mni.Documento(id='1', tipo_local='16').selecionado_por_padrao)
-        self.assertFalse(mni.Documento(id='1').selecionado_por_padrao)
-
     def test_nome_do_documento_usa_rotulo_depois_descricao_depois_id(self):
         self.assertEqual(mni.Documento(id='9', rotulo='CERT1', descricao='CERTIDÃO').nome, 'CERT1')
         self.assertEqual(mni.Documento(id='9', descricao='CERTIDÃO').nome, 'CERTIDÃO')
@@ -195,6 +190,13 @@ class Base(TestCase):
 
     def url_dados(self, amb, numero=NUMERO):
         return reverse('sistemas:processo_dados', args=[amb.sistema_id, amb.pk, numero])
+
+    def dados_do_processo(self, resultado):
+        """Fragmento do processo (amb1) exibindo o resultado dado, sem consultar o tribunal."""
+        self.informar_senha()
+        with mock.patch.object(mni, 'consultar_processo', return_value=resultado), \
+                mock.patch.object(mni, 'descrever_competencia'):
+            return self.client.get(self.url_dados(self.amb1))
 
 
 class BuscaNaBarraTests(Base):
@@ -385,10 +387,7 @@ class PaginacaoEventosTests(Base):
             mni.Movimento(data_hora=base.data_hora, descricao=f'Evento de teste {n}', numero=n)
             for n in range(quantidade, 0, -1)
         ]
-        self.informar_senha()
-        with mock.patch.object(mni, 'consultar_processo', return_value=resultado), \
-                mock.patch.object(mni, 'descrever_competencia'):
-            return self.client.get(self.url_dados(self.amb1))
+        return self.dados_do_processo(resultado)
 
     def test_seletor_com_as_opcoes_e_35_por_padrao(self):
         resp = self.dados_com_eventos(120)
@@ -420,10 +419,7 @@ class CapaDoProcessoTests(Base):
         if processo_sem_prioridade:
             resultado.processo.prioridades_tribunal = []
             resultado.processo.prioridades = []
-        self.informar_senha()
-        with mock.patch.object(mni, 'consultar_processo', return_value=resultado), \
-                mock.patch.object(mni, 'descrever_competencia'):
-            return self.client.get(self.url_dados(self.amb1))
+        return self.dados_do_processo(resultado)
 
     def cabecalho(self, resp):
         html = resp.content.decode()
@@ -448,23 +444,44 @@ class CapaDoProcessoTests(Base):
         self.assertIn('Atualizar', cabecalho)
 
 
+class _Toggles(HTMLParser):
+    """{id do documento: marcado?} dos toggles de seleção, sem depender da ordem dos atributos."""
+
+    def __init__(self, html):
+        super().__init__()
+        self.marcados = {}
+        self.feed(html)
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'input' and attrs.get('name') == 'documentos':
+            self.marcados[attrs['value']] = 'checked' in attrs
+
+
 class SelecaoDeDocumentosTests(Base):
     """Cada documento dos eventos (inclusive vinculado) tem um toggle, marcado conforme o tipo local."""
 
-    def toggles(self):
-        resultado = mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO)
-        inicial = next(m for m in resultado.processo.movimentos if m.numero == 1).documentos[0]
-        inicial.tipo_local = '1'  # PETIÇÃO INICIAL: está na lista
-        self.informar_senha()
-        with mock.patch.object(mni, 'consultar_processo', return_value=resultado), \
-                mock.patch.object(mni, 'descrever_competencia'):
-            html = self.client.get(self.url_dados(self.amb1)).content.decode()
-        return {
-            # \schecked[\s>]: o atributo, não as classes "checked:..." do estilo do switch.
-            re.search(r'value="([^"]+)"', tag).group(1): bool(re.search(r'\schecked[\s>]', tag))
-            for tag in re.findall(r'<input type="checkbox" name="documentos"[^>]*>', html)
-        }
+    def test_regra_de_marcacao(self):
+        self.assertIn('14', TIPOS_MARCADOS)  # SENTENÇA
+        self.assertIn('82400233', TIPOS_MARCADOS)  # RECURSO INOMINADO
+        self.assertNotIn('16', TIPOS_MARCADOS)
+        self.assertNotIn('', TIPOS_MARCADOS)
 
     def test_toggle_marcado_so_para_os_tipos_da_lista(self):
-        # d1 (tipo 1) marcado; o vinculado d1a (tipo 9), d2 (sem tipo) e d3 (tipo 16) desmarcados.
-        self.assertEqual(self.toggles(), {'d1': True, 'd1a': False, 'd2': False, 'd3': False})
+        # d1 passa a ser do tipo local 1 (PETIÇÃO INICIAL, na lista); o vinculado d1a (tipo 9),
+        # d2 (sem tipo) e d3 (tipo 16) não estão na lista.
+        conteudo = RESPOSTA_PROCESSO.replace(
+            b'<ns1:codigoTipoDocumentoLocal>58<', b'<ns1:codigoTipoDocumentoLocal>1<',
+        )
+        resp = self.dados_do_processo(mni.ClienteMNI300.interpretar_processo(conteudo))
+        self.assertEqual(_Toggles(resp.content.decode()).marcados,
+                         {'d1': True, 'd1a': False, 'd2': False, 'd3': False})
+        # Contador no topo da tabela (o navegador o atualiza a cada toggle).
+        self.assertContains(resp, 'x-text="resumoSelecao">1/4 arquivos selecionados<', html=False)
+
+    def test_sem_documentos_nao_mostra_o_contador(self):
+        resultado = mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO)
+        for mov in resultado.processo.movimentos:
+            mov.documentos = []
+        resp = self.dados_do_processo(resultado)
+        self.assertNotContains(resp, 'arquivos-selecionados')

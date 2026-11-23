@@ -10,6 +10,7 @@ from django.urls import reverse
 from . import mni, senhas
 from .models import Ambiente
 from .preferencias import ambiente_padrao
+from .selecao_documentos import selecao_inicial
 from .views_sistemas import SESSAO_AMBIENTE, _ambiente_ativo, _credencial, _destino_seguro
 
 
@@ -95,6 +96,8 @@ def processo_dados(request, sistema_pk, pk, numero):
             if not resultado.processo.numero:
                 resultado.processo.numero = numero
             mni.descrever_competencia(ambiente, resultado.processo)
+            (contexto['documentos_marcados'], contexto['arquivos_selecionados'],
+             contexto['total_arquivos']) = selecao_inicial(resultado.processo)
         if mni.falha_de_autenticacao(resultado):
             senhas.esquecer(request, sistema)
             contexto['pedir_senha'] = True

@@ -38,6 +38,11 @@ function paginarEventos(textos, busca, porPagina, pagina) {
     return { visiveis, total, totalPaginas, pagina: atual, inicio: total ? inicio + 1 : 0, fim };
 }
 
+/** "100/345 arquivos selecionados" (mesmo texto que o servidor renderiza). */
+function resumoSelecao(selecionados, total) {
+    return `${selecionados}/${total} ${total === 1 ? 'arquivo selecionado' : 'arquivos selecionados'}`;
+}
+
 // Componente Alpine: x-data="eventosPaginados()" na seção, x-ref="corpo" no <tbody>.
 function eventosPaginados() {
     return {
@@ -49,9 +54,14 @@ function eventosPaginados() {
         inicio: 0,
         fim: 0,
         linhas: [],
+        arquivosSelecionados: 0,
+        totalArquivos: 0,
 
         init() {
             this.linhas = Array.from(this.$refs.corpo.rows, (tr) => ({ tr, texto: tr.textContent.toLowerCase() }));
+            const toggles = this.$refs.corpo.querySelectorAll('input[name="documentos"]');
+            this.totalArquivos = toggles.length;
+            this.arquivosSelecionados = Array.from(toggles).filter((t) => t.checked).length;
             this.$watch('busca', () => { this.pagina = 1; this.aplicar(); });
             this.$watch('porPagina', (valor) => {
                 guardarEventosPorPagina(valor);
@@ -77,6 +87,15 @@ function eventosPaginados() {
             this.$root.scrollIntoView({ block: 'start', behavior: 'smooth' });
         },
 
+        // Um único listener no <tbody> (x-on:change): soma ou subtrai sem recontar os milhares de toggles.
+        contarSelecao(alvo) {
+            if (alvo.name === 'documentos') this.arquivosSelecionados += alvo.checked ? 1 : -1;
+        },
+
+        get resumoSelecao() {
+            return resumoSelecao(this.arquivosSelecionados, this.totalArquivos);
+        },
+
         get resumo() {
             const nome = this.busca.trim() ? 'encontrado' : 'evento';
             const plural = this.total === 1 ? nome : nome + 's';
@@ -88,5 +107,5 @@ function eventosPaginados() {
 }
 
 if (typeof module !== 'undefined') {
-    module.exports = { paginarEventos, eventosPorPaginaSalvo, EVENTOS_OPCOES, EVENTOS_PADRAO };
+    module.exports = { paginarEventos, eventosPorPaginaSalvo, resumoSelecao, EVENTOS_OPCOES, EVENTOS_PADRAO };
 }
