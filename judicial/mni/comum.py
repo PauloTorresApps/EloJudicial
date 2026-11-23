@@ -17,6 +17,8 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 
 from defusedxml import ElementTree
 
+from .tipos_documento import TIPOS_SELECIONADOS
+
 TIPOS_COMUNICACAO = {
     'CIT': 'Citação',
     'INT': 'Intimação',
@@ -224,10 +226,16 @@ class Documento:
     mimetype: str = ''
     tamanho: int | None = None  # bytes
     vinculados: list['Documento'] = field(default_factory=list)
+    tipo_local: str = ''  # código do tipo de documento na tabela do tribunal
 
     @property
     def nome(self):
         return self.rotulo or self.descricao or f'Documento {self.id}'
+
+    @property
+    def selecionado_por_padrao(self):
+        """Se o documento já vem marcado na lista de eventos (ver tipos_documento)."""
+        return self.tipo_local in TIPOS_SELECIONADOS
 
     @property
     def tamanho_formatado(self):

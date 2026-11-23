@@ -1,3 +1,4 @@
+import re
 import urllib.error
 from hashlib import sha256
 from pathlib import Path
@@ -127,6 +128,19 @@ class ClienteConsultarProcessoTests(TestCase):
             for doc in mov.documentos:
                 self.assertFalse(hasattr(doc, 'conteudo'))
         self.assertNotIn('Q09OVEVVRE8', repr(p))
+
+    def test_tipo_local_do_documento(self):
+        p = mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO).processo
+        evento = {m.numero: m for m in p.movimentos}
+        inicial = evento[1].documentos[0]
+        self.assertEqual((inicial.tipo_local, inicial.vinculados[0].tipo_local), ('58', '9'))
+        self.assertEqual(evento[3].documentos[0].tipo_local, '16')  # e não o codigoTipoDocumento (60)
+
+    def test_documento_selecionado_por_padrao_pelo_tipo_local(self):
+        self.assertTrue(mni.Documento(id='1', tipo_local='14').selecionado_por_padrao)  # SENTENÇA
+        self.assertTrue(mni.Documento(id='1', tipo_local='82400233').selecionado_por_padrao)  # RECURSO INOMINADO
+        self.assertFalse(mni.Documento(id='1', tipo_local='16').selecionado_por_padrao)
+        self.assertFalse(mni.Documento(id='1').selecionado_por_padrao)
 
     def test_nome_do_documento_usa_rotulo_depois_descricao_depois_id(self):
         self.assertEqual(mni.Documento(id='9', rotulo='CERT1', descricao='CERTIDÃO').nome, 'CERT1')
@@ -432,3 +446,25 @@ class CapaDoProcessoTests(Base):
         cabecalho = self.cabecalho(self.dados(processo_sem_prioridade=True))
         self.assertNotIn('Idoso', cabecalho)
         self.assertIn('Atualizar', cabecalho)
+
+
+class SelecaoDeDocumentosTests(Base):
+    """Cada documento dos eventos (inclusive vinculado) tem um toggle, marcado conforme o tipo local."""
+
+    def toggles(self):
+        resultado = mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO)
+        inicial = next(m for m in resultado.processo.movimentos if m.numero == 1).documentos[0]
+        inicial.tipo_local = '1'  # PETIÇÃO INICIAL: está na lista
+        self.informar_senha()
+        with mock.patch.object(mni, 'consultar_processo', return_value=resultado), \
+                mock.patch.object(mni, 'descrever_competencia'):
+            html = self.client.get(self.url_dados(self.amb1)).content.decode()
+        return {
+            # \schecked[\s>]: o atributo, não as classes "checked:..." do estilo do switch.
+            re.search(r'value="([^"]+)"', tag).group(1): bool(re.search(r'\schecked[\s>]', tag))
+            for tag in re.findall(r'<input type="checkbox" name="documentos"[^>]*>', html)
+        }
+
+    def test_toggle_marcado_so_para_os_tipos_da_lista(self):
+        # d1 (tipo 1) marcado; o vinculado d1a (tipo 9), d2 (sem tipo) e d3 (tipo 16) desmarcados.
+        self.assertEqual(self.toggles(), {'d1': True, 'd1a': False, 'd2': False, 'd3': False})

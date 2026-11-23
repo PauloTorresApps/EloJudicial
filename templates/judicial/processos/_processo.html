@@ -156,18 +156,24 @@
                                 {% if mov.documentos %}
                                     <ul class="flex flex-col gap-1">
                                         {% for doc in mov.documentos %}
-                                            <li>
-                                                <a href="{% url 'sistemas:documento' sistema.pk ambiente.pk numero doc.id %}?nome={{ doc.nome|urlencode }}" target="_blank" rel="noopener"
-                                                   class="flex gap-1 items-center text-primary-600 hover:text-primary-700 dark:text-primary-500"
-                                                   title="Abrir {{ doc.descricao|default:doc.nome }}{% if doc.data_hora %} · {{ doc.data_hora|date:'d/m/Y H:i' }}{% endif %}{% if doc.tamanho_formatado %} · {{ doc.tamanho_formatado }}{% endif %}">
-                                                    <span class="material-symbols-outlined text-sm">{% if doc.mimetype == 'application/pdf' %}picture_as_pdf{% else %}description{% endif %}</span>{{ doc.nome }}
-                                                    {% if doc.nivel_sigilo %}<span class="material-symbols-outlined text-sm" title="Sigiloso">lock</span>{% endif %}
-                                                </a>
-                                                {% for v in doc.vinculados %}
-                                                    <a href="{% url 'sistemas:documento' sistema.pk ambiente.pk numero v.id %}?nome={{ v.nome|urlencode }}" target="_blank" rel="noopener"
-                                                       class="flex gap-1 items-center pl-4 text-primary-600 text-xs hover:text-primary-700 dark:text-primary-500" title="Abrir {{ v.descricao|default:v.nome }}">
-                                                        <span class="material-symbols-outlined text-sm">attach_file</span>{{ v.nome }}
+                                            <li class="flex flex-col gap-1">
+                                                <div class="flex gap-2 items-center">
+                                                    {% include "judicial/processos/_selecao_documento.html" %}
+                                                    <a href="{% url 'sistemas:documento' sistema.pk ambiente.pk numero doc.id %}?nome={{ doc.nome|urlencode }}" target="_blank" rel="noopener"
+                                                       class="flex gap-1 items-center text-primary-600 hover:text-primary-700 dark:text-primary-500"
+                                                       title="Abrir {{ doc.descricao|default:doc.nome }}{% if doc.data_hora %} · {{ doc.data_hora|date:'d/m/Y H:i' }}{% endif %}{% if doc.tamanho_formatado %} · {{ doc.tamanho_formatado }}{% endif %}">
+                                                        <span class="material-symbols-outlined text-sm">{% if doc.mimetype == 'application/pdf' %}picture_as_pdf{% else %}description{% endif %}</span>{{ doc.nome }}
+                                                        {% if doc.nivel_sigilo %}<span class="material-symbols-outlined text-sm" title="Sigiloso">lock</span>{% endif %}
                                                     </a>
+                                                </div>
+                                                {% for v in doc.vinculados %}
+                                                    <div class="flex gap-2 items-center pl-4">
+                                                        {% include "judicial/processos/_selecao_documento.html" with doc=v %}
+                                                        <a href="{% url 'sistemas:documento' sistema.pk ambiente.pk numero v.id %}?nome={{ v.nome|urlencode }}" target="_blank" rel="noopener"
+                                                           class="flex gap-1 items-center text-primary-600 text-xs hover:text-primary-700 dark:text-primary-500" title="Abrir {{ v.descricao|default:v.nome }}">
+                                                            <span class="material-symbols-outlined text-sm">attach_file</span>{{ v.nome }}
+                                                        </a>
+                                                    </div>
                                                 {% endfor %}
                                             </li>
                                         {% endfor %}

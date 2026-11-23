@@ -248,6 +248,7 @@ def _documento(el) -> Documento:
         mimetype=texto(conteudo, 'mimetype'),
         tamanho=numero(params.get('tamanho') or _campo(el, 'tamanhoConteudo'), int),
         vinculados=[_documento(v) for v in filhos(el, 'documentoVinculado')],
+        tipo_local=_campo(el, 'codigoTipoDocumentoLocal'),
     )
 
 

@@ -191,6 +191,16 @@ class ProcessoTests(Base):
         self.assertEqual([d.id for d in decisao.documentos], ['d2'])
         self.assertEqual(decisao.documentos[0].mimetype, 'text/html')
 
+    def test_tipo_local_do_documento(self):
+        resposta = RESPOSTA_PROCESSO.replace(
+            b'idDocumento="d1"', b'idDocumento="d1" tipoDocumento="58" tipoDocumentoLocal="14"',
+        )
+        p = mni.ClienteMNI222.interpretar_processo(resposta).processo
+        _, decisao, distribuicao = p.movimentos
+        inicial = distribuicao.documentos[0]
+        self.assertEqual((inicial.tipo_local, inicial.selecionado_por_padrao), ('14', True))
+        self.assertEqual((decisao.documentos[0].tipo_local, decisao.documentos[0].selecionado_por_padrao), ('', False))
+
     def test_nao_encontrado(self):
         resposta = RESPOSTA_FALHA_AUTH.replace(b'Usu\xc3\xa1rio ou senha inv\xc3\xa1lidos.', b'Processo n\xc3\xa3o encontrado')
         r = mni.ClienteMNI222.interpretar_processo(resposta)
