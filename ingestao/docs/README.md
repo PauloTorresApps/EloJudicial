@@ -27,6 +27,47 @@ substitui, e a antiga passa ao status "Substituída por NNNN".
 | [0014](0014-medicao-e-calibracao-dos-limiares.md) | Medição e calibração dos limiares | Aceita | 2026-11-24 |
 | [0015](0015-revisao-de-simplificacao.md) | Revisão de simplificação do módulo | Aceita | 2026-11-24 |
 
+## Próximos passos
+
+Situação em 2026-11-24: passos 1 (detecção por página, [0013](0013-deteccao-de-texto-por-pagina.md))
+e 2 (medição, [0014](0014-medicao-e-calibracao-dos-limiares.md)) da cascata de extração prontos.
+O que vem a seguir, em ordem:
+
+1. **Coletar dados reais** (responsável pelo projeto):
+   - ingerir processos reais de mais de um sistema (eproc, PJe, e-SAJ), incluindo processos com
+     documentos escaneados;
+   - rodar `docker compose exec web python manage.py estatisticas_extracao` e guardar a saída
+     (só contagens, sem dados de processo);
+   - conferir por amostragem páginas classificadas como "para OCR" e como "com texto".
+2. **Calibrar os limiares:** simular valores com `--simular`, ajustar `Limiares` em
+   `extracao.py`, registrar a mudança num novo ADR com os números que a justificaram e rodar
+   `reextrair --todos`.
+3. **Decisões de produto antes do OCR e do multimodal** (não dependem de código):
+   - provedor do modelo multimodal, condições contratuais e LGPD;
+   - se documentos com nível de sigilo acima de zero podem ser enviados a ele;
+   - teto de custo por lote.
+4. **Passo 3 da cascata, camada de OCR local:**
+   - comparar Tesseract e PaddleOCR numa amostra real (qualidade, tempo, tamanho da imagem
+     Docker, suporte ao Python 3.14);
+   - pré-processamento de fotos e xerox (endireitar, binarizar, tirar ruído);
+   - fila e worker próprios (`ocr`), nova situação/método de página (`metodo` = OCR) e
+     confiança guardada por página;
+   - definir o limiar de confiança a partir do qual a página sobe para o multimodal.
+5. **Passo 3 da cascata, camada multimodal:** só para as páginas abaixo do limiar de confiança,
+   respeitando as decisões do item 3.
+6. **Pendências menores do módulo** (podem entrar a qualquer momento):
+   - apagar a chave de acesso ao tribunal quando o lote termina
+     ([0015](0015-revisao-de-simplificacao.md));
+   - política de retenção e tela para apagar lotes;
+   - paginação e contagem de páginas guardada, se lotes grandes ficarem lentos;
+   - entrega dos originais em streaming;
+   - limite de taxa por tribunal, se algum reclamar de carga.
+7. **Agentes de IA:** fila `ia` separada, orquestração (`chain`/`chord`) e limite de taxa por
+   provedor, consumindo o texto das páginas já extraídas
+   ([0002](0002-execucao-em-segundo-plano-com-celery.md)).
+
+Os detalhes de cada ponto ainda sem decisão estão na seção abaixo.
+
 ## Decisões em aberto
 
 Pontos levantados que ainda precisam de decisão:
