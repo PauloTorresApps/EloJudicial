@@ -317,12 +317,21 @@ class ConteudoDocumento:
     dados: bytes
     encoding: str = ''
 
+    @property
+    def mimetype_base(self):
+        """'application/pdf; charset=x' -> 'application/pdf' (minúsculo; octet-stream se vazio)."""
+        return self.mimetype.split(';')[0].strip().lower() or 'application/octet-stream'
+
 
 @dataclass
 class ResultadoDocumentos:
     sucesso: bool
     mensagens: list[str] = field(default_factory=list)
     documentos: list[ConteudoDocumento] = field(default_factory=list)
+
+    def documento(self, id_documento) -> ConteudoDocumento | None:
+        """O documento pedido; se o tribunal o devolver com outro id, o primeiro da resposta."""
+        return next((d for d in self.documentos if d.id == id_documento), None) or next(iter(self.documentos), None)
 
 
 def falha_de_autenticacao(resultado) -> bool:

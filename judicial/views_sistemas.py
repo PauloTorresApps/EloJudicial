@@ -33,7 +33,7 @@ def _destino_seguro(request, destino):
     return None
 
 
-def _credencial(request, sistema):
+def credencial_do_usuario(request, sistema):
     # No máximo uma por (usuário, sistema): order_by() dispensa o JOIN/ORDER BY do Meta.ordering.
     return request.user.credenciais_judiciais.filter(sistema=sistema).order_by().first()
 
@@ -65,26 +65,26 @@ def ambientes(request, pk):
     return render(request, 'judicial/sistemas/ambientes.html', {
         'sistema': sistema,
         'ambientes': sistema.ambientes.filter(ativo=True),
-        'credencial': _credencial(request, sistema),
+        'credencial': credencial_do_usuario(request, sistema),
         'senha_ok': senhas.obter(request, sistema) is not None,
         'ambiente_atual_id': request.session.get(SESSAO_AMBIENTE),
         'padrao': ambiente_padrao(request.user),
     })
 
 
-def _ambiente_ativo(sistema_pk, pk):
+def ambiente_ativo(sistema_pk, pk):
     return get_object_or_404(Ambiente.objects.ativos(), pk=pk, sistema_id=sistema_pk)
 
 
 def servicos(request, sistema_pk, pk):
     """Área de trabalho do ambiente. Os avisos pendentes são carregados em seguida (htmx)."""
-    ambiente = _ambiente_ativo(sistema_pk, pk)
+    ambiente = ambiente_ativo(sistema_pk, pk)
     # O ambiente escolhido fica guardado na sessão: é ele que o EloJudicial usa nos serviços.
     request.session[SESSAO_AMBIENTE] = ambiente.pk
     return render(request, 'judicial/sistemas/servicos.html', {
         'ambiente': ambiente,
         'sistema': ambiente.sistema,
-        'credencial': _credencial(request, ambiente.sistema),
+        'credencial': credencial_do_usuario(request, ambiente.sistema),
         'senha_ok': senhas.obter(request, ambiente.sistema) is not None,
         'padrao': ambiente_padrao(request.user),
         'avisos': avisos_guardados(request.user, ambiente),
@@ -97,9 +97,9 @@ def servicos(request, sistema_pk, pk):
 def avisos_pendentes(request, sistema_pk, pk):
     """Fragmento HTML com os avisos pendentes: consulta o tribunal (MNI), grava o que chegou
     e mostra todos os avisos ainda pendentes guardados para o usuário."""
-    ambiente = _ambiente_ativo(sistema_pk, pk)
+    ambiente = ambiente_ativo(sistema_pk, pk)
     sistema = ambiente.sistema
-    credencial = _credencial(request, sistema)
+    credencial = credencial_do_usuario(request, sistema)
     senha_hash = senhas.obter(request, sistema)
     contexto = {
         'ambiente': ambiente, 'sistema': sistema, 'credencial': credencial,
@@ -132,7 +132,7 @@ def avisos_pendentes(request, sistema_pk, pk):
 def credencial(request, pk):
     """Cadastra ou altera o usuário do sistema judicial (um por sistema). A senha nunca é pedida aqui."""
     sistema = get_object_or_404(SistemaJudicial, pk=pk, ativo=True)
-    atual = _credencial(request, sistema)
+    atual = credencial_do_usuario(request, sistema)
     login_anterior = atual.login if atual else None  # is_valid() já altera a instância
     form = CredencialForm(request.POST or None, instance=atual, usuario=request.user, sistema=sistema)
     if request.method == 'POST' and form.is_valid():
@@ -186,7 +186,7 @@ def esquecer_senha(request, pk):
 
 @require_POST
 def definir_padrao(request, sistema_pk, pk):
-    ambiente = _ambiente_ativo(sistema_pk, pk)
+    ambiente = ambiente_ativo(sistema_pk, pk)
     definir_ambiente_padrao(request.user, ambiente)
     messages.success(
         request, f'{ambiente.sistema.nome} · {ambiente.descricao} agora é o seu ambiente padrão. '

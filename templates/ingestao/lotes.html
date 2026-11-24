@@ -1,0 +1,54 @@
+{% extends "layouts/app.html" %}
+{% load unfold %}
+{% block titulo %}Ingestões{% endblock %}
+{% block trilha %}
+    {% include "layouts/_trilha_item.html" with rotulo="Ingestões" %}
+{% endblock %}
+{% block content %}
+    <div class="mb-6">
+        <h1 class="font-semibold text-2xl text-important tracking-tight">Ingestões</h1>
+        <p class="mt-1 text-subtle">Documentos baixados dos tribunais para análise. Só você vê os seus lotes.</p>
+    </div>
+
+    {% if lotes %}
+        <section class="bg-white border border-base-200 overflow-hidden rounded-default shadow-xs dark:bg-base-900 dark:border-base-800">
+            <div class="overflow-x-auto">
+                <table class="border-separate border-spacing-none w-full">
+                    <thead class="text-important">
+                        <tr class="bg-base-50 dark:bg-base-900">
+                            <th class="border-b border-base-200 font-semibold px-4 py-2 text-left dark:border-base-800">Lote</th>
+                            <th class="border-b border-base-200 font-semibold px-3 py-2 text-left dark:border-base-800">Processo</th>
+                            <th class="border-b border-base-200 font-semibold px-3 py-2 text-left dark:border-base-800">Sistema</th>
+                            <th class="border-b border-base-200 font-semibold px-3 py-2 text-left dark:border-base-800">Criado em</th>
+                            <th class="border-b border-base-200 font-semibold px-4 py-2 text-left dark:border-base-800">Andamento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lote in lotes %}
+                            <tr>
+                                <td class="border-b border-base-200 px-4 py-2 dark:border-base-800"><a href="{% url 'ingestao:lote' lote.pk %}" class="font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-500">#{{ lote.pk }}</a></td>
+                                <td class="border-b border-base-200 px-3 py-2 tabular-nums dark:border-base-800">{{ lote.numero_formatado }}</td>
+                                <td class="border-b border-base-200 px-3 py-2 dark:border-base-800">{{ lote.ambiente.sistema.nome }} · {{ lote.ambiente.descricao }}</td>
+                                <td class="border-b border-base-200 px-3 py-2 whitespace-nowrap dark:border-base-800">{{ lote.criado_em|date:"d/m/Y H:i" }}</td>
+                                <td class="border-b border-base-200 px-4 py-2 tabular-nums dark:border-base-800">
+                                    {{ lote.concluidos }}/{{ lote.total }}
+                                    {% if lote.em_andamento %}{% include "unfold/helpers/label.html" with text="em andamento" variant="info" size="md" %}{% endif %}
+                                    {% if lote.aguardando_senha %}{% include "unfold/helpers/label.html" with text="aguardando senha" variant="warning" size="md" %}{% endif %}
+                                    {% if lote.com_erro %}{% include "unfold/helpers/label.html" with text="com erro" variant="danger" size="md" %}{% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    {% else %}
+        {% component "unfold/components/card.html" %}
+            <div class="flex flex-col gap-2 items-center py-8 text-center">
+                <span class="material-symbols-outlined text-base-300 text-6xl! dark:text-base-500">inventory_2</span>
+                <p class="font-semibold text-important">Nenhuma ingestão ainda</p>
+                <p class="text-subtle">Na tabela de eventos de um processo, marque os arquivos e use "Ingerir selecionados".</p>
+            </div>
+        {% endcomponent %}
+    {% endif %}
+{% endblock %}

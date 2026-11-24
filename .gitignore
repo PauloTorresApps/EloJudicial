@@ -6,3 +6,4 @@ db.sqlite3
 staticfiles/
 media/
 docker/nginx/certs/
+dados/

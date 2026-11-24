@@ -23,5 +23,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('contas/', include('core.urls_contas')),
     path('sistemas/', include('judicial.urls_sistemas')),
+    path('ingestao/', include('ingestao.urls')),
     path('', views.inicio, name='inicio'),
 ]

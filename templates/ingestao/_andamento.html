@@ -1,0 +1,16 @@
+{# Resumo do lote. Enquanto há arquivos na fila, consulta o servidor a cada 3 s; ao terminar, o servidor recarrega a página (HX-Refresh). #}
+<div id="andamento" class="flex flex-col gap-2"
+     {% if lote.em_andamento %}hx-get="{% url 'ingestao:andamento' lote.pk %}" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
+    <div class="flex flex-wrap gap-x-4 gap-y-1 items-center text-sm">
+        <span class="font-semibold text-important tabular-nums">{{ lote.concluidos }}/{{ lote.total }} concluído{{ lote.total|pluralize }}</span>
+        {% if lote.em_andamento %}<span class="flex gap-1 items-center text-subtle"><span class="animate-spin material-symbols-outlined text-sm">progress_activity</span>{{ lote.em_andamento }} na fila</span>{% endif %}
+        {% if lote.parciais %}<span class="text-subtle" title="Parte das páginas é digitalizada ou tem texto ruim: precisa de OCR">{{ lote.parciais }} com texto parcial</span>{% endif %}
+        {% if lote.sem_texto %}<span class="text-subtle" title="Guardados, mas sem texto extraído (ex.: PDF digitalizado)">{{ lote.sem_texto }} sem texto</span>{% endif %}
+        {% if lote.aguardando_senha %}<span class="text-orange-700 dark:text-orange-400">{{ lote.aguardando_senha }} aguardando senha</span>{% endif %}
+        {% if lote.com_erro %}<span class="text-red-700 dark:text-red-400">{{ lote.com_erro }} com erro</span>{% endif %}
+    </div>
+    <div class="bg-base-200 h-2 overflow-hidden rounded-full dark:bg-base-700" role="progressbar"
+         aria-valuemin="0" aria-valuemax="{{ lote.total }}" aria-valuenow="{{ lote.concluidos }}" aria-label="Arquivos concluídos">
+        <div class="bg-primary-600 h-full transition-all" style="width: {% widthratio lote.concluidos lote.total 100 %}%"></div>
+    </div>
+</div>

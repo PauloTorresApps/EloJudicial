@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'core',
     'judicial',
+    'ingestao',
 ]
 
 MIDDLEWARE = [
@@ -159,9 +160,15 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# Arquivos ingeridos dos tribunais (originais). Ficam fora de qualquer pasta servida pelo
+# nginx/whitenoise: só são entregues pelas views, ao dono. No Docker, é um volume próprio,
+# compartilhado entre o web e o worker.
+INGESTAO_DIR = Path(os.environ.get('INGESTAO_DIR', BASE_DIR / 'dados' / 'ingestao'))
+
 STORAGES = {
     'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
     'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
+    'ingestao': {'BACKEND': 'django.core.files.storage.FileSystemStorage', 'OPTIONS': {'location': INGESTAO_DIR}},
 }
 
 # Nos testes não há collectstatic, então o manifest não existe.
@@ -211,13 +218,34 @@ if sys.argv[1:2] == ['test']:
 # Depois disso, ao sair do EloJudicial, ou se o tribunal recusar a senha, ela é pedida de novo.
 MNI_SENHA_TTL = int(os.environ.get('MNI_SENHA_TTL', 2 * 60 * 60))
 
+# Celery (tarefas em segundo plano; ver config/celery.py). A fila fica num Redis próprio, com
+# persistência (REDIS_FILA_URL), separado do Redis de cache, que guarda dados sensíveis só em memória.
+CELERY_BROKER_URL = os.environ.get('REDIS_FILA_URL', 'memory://')
+CELERY_TASK_IGNORE_RESULT = True  # o estado de cada tarefa fica no PostgreSQL
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TIMEZONE = TIME_ZONE
+# Tarefas longas (tribunal, IA): confirma a mensagem só ao terminar e pega uma por vez. O
+# visibility_timeout precisa ser maior que a tarefa mais longa, senão o Redis a entrega de novo.
+CELERY_TASK_ACKS_LATE = True
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_BROKER_TRANSPORT_OPTIONS = {'visibility_timeout': 2 * 60 * 60}
+CELERY_TASK_ROUTES = {'ingestao.*': {'queue': 'ingestao'}}
+if sys.argv[1:2] == ['test'] or not os.environ.get('REDIS_FILA_URL'):
+    # Testes e execução fora do Docker: a tarefa roda na hora, no próprio processo.
+    CELERY_TASK_ALWAYS_EAGER = True
+
 # Logs: mensagens da integração (judicial) no console do container.
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {'simples': {'format': '{asctime} {levelname} {name}: {message}', 'style': '{'}},
     'handlers': {'console': {'class': 'logging.StreamHandler', 'formatter': 'simples'}},
-    'loggers': {'judicial': {'handlers': ['console'], 'level': os.environ.get('ELOJUDICIAL_LOG_NIVEL', 'INFO')}},
+    'loggers': {
+        nome: {'handlers': ['console'], 'level': os.environ.get('ELOJUDICIAL_LOG_NIVEL', 'INFO')}
+        for nome in ('judicial', 'ingestao')
+    },
 }
 
 # E-mail

@@ -17,6 +17,12 @@ services:
     depends_on:
       - mailpit
 
+  worker:
+    environment:
+      DJANGO_DEBUG: "True"
+    volumes:
+      - .:/app
+
   # Captura todos os e-mails enviados em dev. Interface web (via nginx): http://localhost:8025
   mailpit:
     image: axllent/mailpit:v1.33

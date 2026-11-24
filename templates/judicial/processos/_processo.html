@@ -122,6 +122,12 @@
                     <span class="material-symbols-outlined text-sm">check_circle</span>
                     <span x-text="resumoSelecao">{{ arquivos_selecionados }}/{{ total_arquivos }} arquivo{{ total_arquivos|pluralize }} selecionado{{ total_arquivos|pluralize }}</span>
                 </p>
+                {# Envia o formulário que envolve a tabela (#form-ingestao): os toggles marcados de todas as páginas. #}
+                <button type="submit" form="form-ingestao" x-bind:disabled="!arquivosSelecionados"
+                        class="bg-primary-600 cursor-pointer flex font-medium gap-1 items-center px-3 py-1.5 rounded-default text-sm text-white hover:bg-primary-600/80 disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Baixa os arquivos marcados e extrai o texto, em segundo plano">
+                    <span class="material-symbols-outlined text-base">move_to_inbox</span> Ingerir selecionados
+                </button>
             {% endif %}
         </div>
         <div class="flex flex-col gap-3 min-w-0 sm:flex-row sm:items-center">
@@ -142,6 +148,8 @@
         </div>
     </div>
     {% if total %}
+        <form id="form-ingestao" method="post" action="{% url 'ingestao:ingerir' sistema.pk ambiente.pk numero %}">
+        {% csrf_token %}
         <div class="overflow-x-auto">
             <table class="border-separate border-spacing-none w-full">
                 <thead class="text-important">
@@ -199,6 +207,7 @@
                 {% endspaceless %}</tbody>
             </table>
         </div>
+        </form>
         <p x-cloak x-show="!total" class="px-4 py-6 text-center text-subtle">Nenhum evento encontrado para esta pesquisa.</p>
 
         {% with botao="border border-base-200 cursor-pointer flex items-center justify-center min-w-8 h-8 rounded-default shadow-xs text-important hover:bg-base-100/80 disabled:cursor-not-allowed disabled:opacity-50 dark:border-base-700 dark:hover:bg-base-800/80" %}

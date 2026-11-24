@@ -1,0 +1,85 @@
+# Decisões do módulo de ingestão
+
+Registro das decisões de arquitetura e de produto do módulo `ingestao` (ADR — *Architecture
+Decision Records*). Cada decisão tem um arquivo próprio com o contexto, a decisão, as
+alternativas consideradas, os motivos e as consequências.
+
+Uma decisão registrada não é apagada nem reescrita. Se mudar, cria-se uma nova decisão que a
+substitui, e a antiga passa ao status "Substituída por NNNN".
+
+## Índice
+
+| Nº | Decisão | Status | Data |
+|----|---------|--------|------|
+| [0001](0001-o-que-e-ingerido.md) | O que é ingerido: os documentos com o toggle ligado | Aceita | 2026-11-23 |
+| [0002](0002-execucao-em-segundo-plano-com-celery.md) | Execução em segundo plano com Celery | Aceita | 2026-11-23 |
+| [0003](0003-redis-separado-para-a-fila.md) | Redis separado para a fila, com persistência | Aceita | 2026-11-23 |
+| [0004](0004-estado-no-postgresql-mensagens-so-com-ids.md) | Estado no PostgreSQL; mensagens da fila só com ids | Aceita | 2026-11-23 |
+| [0005](0005-acesso-ao-tribunal-pelo-worker.md) | Acesso ao tribunal pelo worker sem persistir a senha | Aceita | 2026-11-23 |
+| [0006](0006-tarefas-longas-e-idempotencia.md) | Configuração para tarefas longas e idempotência | Aceita | 2026-11-23 |
+| [0007](0007-armazenamento-em-volume-em-disco.md) | Originais num volume em disco | Aceita | 2026-11-23 |
+| [0008](0008-extracao-de-texto-sem-ocr.md) | Extração de texto de PDF e HTML, sem OCR | Aceita (complementada por 0013) | 2026-11-23 |
+| [0009](0009-arquivos-pertencem-ao-usuario.md) | Lotes e arquivos pertencem ao usuário | Aceita | 2026-11-23 |
+| [0010](0010-metadados-da-tabela-exibida.md) | Metadados dos documentos vêm da tabela exibida | Aceita | 2026-11-23 |
+| [0011](0011-acompanhamento-do-lote-na-tela.md) | Acompanhamento do lote na tela | Aceita | 2026-11-23 |
+| [0012](0012-versoes-das-dependencias.md) | Versões das dependências novas | Aceita | 2026-11-23 |
+| [0013](0013-deteccao-de-texto-por-pagina.md) | Detecção de texto por página | Aceita | 2026-11-24 |
+| [0014](0014-medicao-e-calibracao-dos-limiares.md) | Medição e calibração dos limiares | Aceita | 2026-11-24 |
+| [0015](0015-revisao-de-simplificacao.md) | Revisão de simplificação do módulo | Aceita | 2026-11-24 |
+
+## Decisões em aberto
+
+Pontos levantados que ainda precisam de decisão:
+
+- **Retenção dos arquivos:** hoje os originais e o texto ficam guardados até o lote ser apagado,
+  e não há tela para apagar lotes. Falta definir por quanto tempo guardar e quem pode apagar.
+- **Chave de acesso de lotes concluídos:** ao sair do sistema, só as chaves de lotes em
+  andamento são apagadas; as de lotes concluídos expiram com o `MNI_SENHA_TTL`. Sugestão: apagar
+  a chave quando o lote termina (ver [0015](0015-revisao-de-simplificacao.md)).
+- **Desempenho de lotes grandes:** paginação das listas e contagem de páginas guardada no
+  arquivo, se a tela do lote ficar lenta (ver [0015](0015-revisao-de-simplificacao.md)).
+- **Carga no tribunal:** o worker baixa 4 arquivos em paralelo. Se algum tribunal limitar
+  requisições, será preciso um limite de taxa por tarefa (`rate_limit`) ou por sistema.
+- **Entrega de originais grandes:** o download pela tela lê o arquivo inteiro na memória (até
+  100 MB). Se pesar, passar a entregar em streaming.
+- **Cascata de extração, passo 3 (depende das medições da [0014](0014-medicao-e-calibracao-dos-limiares.md)):**
+  - **Motor de OCR:** Tesseract (leve, devolve confiança por palavra) ou PaddleOCR (melhor em
+    fotos, mas pesado e ainda sem confirmação de suporte ao Python 3.14), comparados numa amostra
+    real; pré-processamento de fotos e xerox (endireitar, binarizar, tirar ruído); fila e worker
+    próprios (`ocr`).
+  - **Limiar de confiança do OCR** a partir do qual a página sobe para o modelo multimodal.
+  - **Modelo multimodal:** provedor, condições contratuais e LGPD, se documentos com nível de
+    sigilo acima de zero podem ser enviados, e teto de custo por lote.
+- **Calibração dos limiares** da [0013](0013-deteccao-de-texto-por-pagina.md), com ingestões reais.
+- **Agentes de IA:** fila `ia` separada, orquestração (`chain`/`chord`) e limite de taxa por
+  provedor (ver [0002](0002-execucao-em-segundo-plano-com-celery.md)).
+
+## Como registrar uma nova decisão
+
+1. Copie o modelo abaixo para `NNNN-titulo-curto.md`, com o próximo número.
+2. Preencha todas as seções. Em "Alternativas consideradas", registre também as descartadas e o
+   porquê: é o que mais se perde com o tempo.
+3. Acrescente a linha no índice acima. Se a decisão substitui outra, atualize o status da antiga.
+
+```markdown
+# NNNN. Título da decisão
+
+- **Status:** Proposta | Aceita | Substituída por NNNN
+- **Data:** AAAA-MM-DD
+- **Origem:** escolha do responsável pelo projeto | proposta técnica aceita
+
+## Contexto
+O problema ou a necessidade, e as restrições que pesam sobre ele.
+
+## Decisão
+O que foi decidido, de forma direta.
+
+## Alternativas consideradas
+- **Alternativa A:** prós, contras e por que não foi escolhida.
+
+## Motivos
+Por que esta opção e não as outras.
+
+## Consequências
+O que passa a valer, o que fica mais fácil, o que fica mais difícil e o que precisa de cuidado.
+```

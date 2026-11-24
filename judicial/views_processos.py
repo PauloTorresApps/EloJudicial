@@ -10,8 +10,8 @@ from django.urls import reverse
 from . import mni, senhas
 from .models import Ambiente
 from .preferencias import ambiente_padrao
-from .selecao_documentos import selecao_inicial
-from .views_sistemas import SESSAO_AMBIENTE, _ambiente_ativo, _credencial, _destino_seguro
+from .selecao_documentos import documentos_da_tabela, lembrar_documentos, selecao_inicial
+from .views_sistemas import SESSAO_AMBIENTE, ambiente_ativo, credencial_do_usuario, _destino_seguro
 
 
 SESSAO_BUSCA = 'busca_processo'
@@ -48,7 +48,7 @@ def buscar(request):
     return redirect('sistemas:processo', sistema_pk=ambiente.sistema_id, pk=ambiente.pk, numero=numero)
 
 
-def _numero_valido(numero):
+def numero_valido(numero):
     try:
         return mni.normalizar_numero_processo(numero)
     except mni.NumeroInvalido as exc:
@@ -56,25 +56,25 @@ def _numero_valido(numero):
 
 
 def processo(request, sistema_pk, pk, numero):
-    ambiente = _ambiente_ativo(sistema_pk, pk)
-    numero = _numero_valido(numero)
+    ambiente = ambiente_ativo(sistema_pk, pk)
+    numero = numero_valido(numero)
     request.session[SESSAO_AMBIENTE] = ambiente.pk
     return render(request, 'judicial/processos/processo.html', {
         'ambiente': ambiente,
         'sistema': ambiente.sistema,
         'numero': numero,
         'numero_formatado': mni.formatar_numero_processo(numero),
-        'credencial': _credencial(request, ambiente.sistema),
+        'credencial': credencial_do_usuario(request, ambiente.sistema),
         'senha_ok': senhas.obter(request, ambiente.sistema) is not None,
     })
 
 
 def processo_dados(request, sistema_pk, pk, numero):
     """Fragmento HTML com o resultado da consulta do processo (MNI consultarProcesso)."""
-    ambiente = _ambiente_ativo(sistema_pk, pk)
-    numero = _numero_valido(numero)
+    ambiente = ambiente_ativo(sistema_pk, pk)
+    numero = numero_valido(numero)
     sistema = ambiente.sistema
-    credencial = _credencial(request, sistema)
+    credencial = credencial_do_usuario(request, sistema)
     senha_hash = senhas.obter(request, sistema)
     contexto = {
         'ambiente': ambiente, 'sistema': sistema, 'credencial': credencial,
@@ -96,7 +96,9 @@ def processo_dados(request, sistema_pk, pk, numero):
             if not resultado.processo.numero:
                 resultado.processo.numero = numero
             mni.descrever_competencia(ambiente, resultado.processo)
-            contexto.update(selecao_inicial(resultado.processo, sistema.codigos_marcados()))
+            documentos = documentos_da_tabela(resultado.processo)
+            contexto.update(selecao_inicial(documentos, sistema.codigos_marcados()))
+            lembrar_documentos(request.user, ambiente, numero, documentos)
         if mni.falha_de_autenticacao(resultado):
             senhas.esquecer(request, sistema)
             contexto['pedir_senha'] = True
@@ -119,11 +121,11 @@ def _nome_arquivo(nome, mimetype):
 
 def documento(request, sistema_pk, pk, numero, id_documento):
     """Entrega o arquivo de um documento do processo (MNI consultarDocumentosProcesso)."""
-    ambiente = _ambiente_ativo(sistema_pk, pk)
-    numero = _numero_valido(numero)
+    ambiente = ambiente_ativo(sistema_pk, pk)
+    numero = numero_valido(numero)
     sistema = ambiente.sistema
     pagina_processo = reverse('sistemas:processo', args=[sistema.pk, ambiente.pk, numero])
-    credencial = _credencial(request, sistema)
+    credencial = credencial_do_usuario(request, sistema)
     senha_hash = senhas.obter(request, sistema)
     if credencial is None or senha_hash is None:
         messages.warning(request, f'Informe sua senha do {sistema.nome} para abrir o documento.')
@@ -138,19 +140,25 @@ def documento(request, sistema_pk, pk, numero, id_documento):
         senhas.esquecer(request, sistema)
         messages.error(request, 'O tribunal recusou a senha. Informe-a novamente para abrir o documento.')
         return redirect(pagina_processo)
-    doc = next((d for d in resultado.documentos if d.id == id_documento), None) or (resultado.documentos or [None])[0]
+    doc = resultado.documento(id_documento)
     if not resultado.sucesso or doc is None or not doc.dados:
         motivo = ' '.join(resultado.mensagens) or 'o tribunal não enviou o conteúdo.'
         messages.error(request, f'Não foi possível abrir o documento: {motivo}')
         return redirect(pagina_processo)
+    return resposta_documento(request, doc.dados, doc.mimetype_base, doc.encoding, request.GET.get('nome', id_documento))
 
-    mimetype = doc.mimetype.split(';')[0].strip().lower() or 'application/octet-stream'
+
+def resposta_documento(request, dados, mimetype, encoding, nome):
+    """Entrega um documento vindo do tribunal (também usado pela ingestão), isolado do sistema.
+
+    ?baixar força o download; tipos fora de TIPOS_EXIBIVEIS são sempre baixados.
+    """
     exibir = mimetype in TIPOS_EXIBIVEIS and 'baixar' not in request.GET
     tipo_resposta = mimetype
     if mimetype.startswith('text/'):
-        tipo_resposta = f'{mimetype}; charset={doc.encoding or "utf-8"}'
-    resposta = HttpResponse(doc.dados, content_type=tipo_resposta)
-    nome = _nome_arquivo(request.GET.get('nome', id_documento), mimetype)
+        tipo_resposta = f'{mimetype}; charset={encoding or "utf-8"}'
+    resposta = HttpResponse(dados, content_type=tipo_resposta)
+    nome = _nome_arquivo(nome, mimetype)
     resposta['Content-Disposition'] = f'{"inline" if exibir else "attachment"}; filename="{nome}"'
     resposta['X-Content-Type-Options'] = 'nosniff'
     resposta['Cache-Control'] = 'private, no-store'

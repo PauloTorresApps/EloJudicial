@@ -28,24 +28,54 @@ services:
       timeout: 3s
       retries: 10
 
-  web:
+  # Fila do Celery (tarefas em segundo plano). Redis separado do cache: este tem persistência
+  # (AOF) e nunca descarta chaves; as mensagens levam só ids, nunca senha ou documento.
+  redis-fila:
+    image: redis:8.8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction", "--requirepass", "${REDIS_FILA_PASSWORD:-elojudicial}"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_FILA_PASSWORD:-elojudicial}
+    volumes:
+      - redis-fila:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web: &app
     build: .
     restart: unless-stopped
     env_file:
       - path: .env
         required: false
-    environment:
+    environment: &app-env
       POSTGRES_DB: ${POSTGRES_DB:-elojudicial}
       POSTGRES_USER: ${POSTGRES_USER:-elojudicial}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-elojudicial}
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
       REDIS_URL: redis://:${REDIS_PASSWORD:-elojudicial}@redis:6379/0
+      REDIS_FILA_URL: redis://:${REDIS_FILA_PASSWORD:-elojudicial}@redis-fila:6379/0
+      INGESTAO_DIR: /var/lib/elojudicial/ingestao
+    volumes:
+      - ingestao:/var/lib/elojudicial/ingestao
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+      redis-fila:
+        condition: service_healthy
+
+  # Executa as tarefas em segundo plano (fila "ingestao": download e extração de texto).
+  worker:
+    <<: *app
+    command: ["celery", "-A", "config", "worker", "-Q", "ingestao", "--concurrency", "4", "--loglevel", "INFO"]
+    environment:
+      <<: *app-env
+      DJANGO_MIGRATE: "0"  # as migrações ficam a cargo do web
 
   # Único ponto de entrada externo (80 e 443). Os demais serviços não publicam portas:
   # o sistema é servido pelo nginx e o banco/Redis são alcançados pela 443 via SNI.
@@ -69,3 +99,5 @@ services:
 volumes:
   pgdata:
   acme:
+  redis-fila:
+  ingestao:

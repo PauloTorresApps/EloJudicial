@@ -15,7 +15,8 @@ RUN pip install -r requirements.txt
 COPY . .
 RUN chmod +x docker/entrypoint.sh \
     && DJANGO_SECRET_KEY=build-only python manage.py collectstatic --noinput \
-    && chown -R app:app /app
+    && mkdir -p /var/lib/elojudicial/ingestao \
+    && chown -R app:app /app /var/lib/elojudicial
 
 USER app
 

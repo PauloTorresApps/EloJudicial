@@ -1,0 +1,75 @@
+{% extends "layouts/app.html" %}
+{% load unfold %}
+{% block titulo %}Ingestão #{{ lote.pk }} · Processo {{ lote.numero_formatado }}{% endblock %}
+{% block trilha %}
+    {% url 'ingestao:lotes' as url_lotes %}{% include "layouts/_trilha_item.html" with rotulo="Ingestões" url=url_lotes %}
+    {% with pk_texto=lote.pk|stringformat:"s" %}{% include "layouts/_trilha_item.html" with rotulo="Lote #"|add:pk_texto %}{% endwith %}
+{% endblock %}
+{% block content %}
+    <div class="flex flex-col gap-4 mb-6 md:flex-row md:items-center justify-between">
+        <div>
+            <h1 class="font-semibold text-2xl text-important tracking-tight">Ingestão · Processo {{ lote.numero_formatado }}</h1>
+            <p class="mt-1 text-subtle">
+                {{ sistema.nome }} · {{ lote.ambiente.descricao }} · como <strong class="text-important">{{ lote.login }}</strong> · {{ lote.criado_em|date:"d/m/Y H:i" }}
+            </p>
+        </div>
+        <div class="flex flex-wrap gap-3" x-data="{ aberto: false }">
+            {% if lote.aguardando_senha or lote.com_erro %}
+                {% if senha_ok %}
+                    <form method="post" action="{% url 'ingestao:retomar' lote.pk %}">
+                        {% csrf_token %}
+                        {% component "unfold/components/button.html" with submit=1 variant="primary" icon="replay" title="Põe de volta na fila os arquivos que aguardam senha ou falharam" %}Retomar{% endcomponent %}
+                    </form>
+                {% else %}
+                    <button type="button" x-on:click="aberto = true" class="bg-primary-600 cursor-pointer flex font-medium gap-1 items-center px-3 py-2 rounded-default text-white hover:bg-primary-600/80">
+                        <span class="material-symbols-outlined">lock_open</span> Informar senha para retomar
+                    </button>
+                    {% include "judicial/sistemas/_modal_senha.html" with voltar_para=request.path login_inicial=credencial.login|default:lote.login %}
+                {% endif %}
+            {% endif %}
+            {% url 'sistemas:processo' sistema.pk lote.ambiente_id lote.numero_processo as url_processo %}
+            {% component "unfold/components/button.html" with href=url_processo variant="default" icon="gavel" %}Abrir processo{% endcomponent %}
+        </div>
+    </div>
+
+    <section class="bg-white border border-base-200 mb-4 px-4 py-3 rounded-default shadow-xs dark:bg-base-900 dark:border-base-800">
+        {% include "ingestao/_andamento.html" %}
+    </section>
+
+    <section class="bg-white border border-base-200 overflow-hidden rounded-default shadow-xs dark:bg-base-900 dark:border-base-800">
+        <div class="overflow-x-auto">
+            <table class="border-separate border-spacing-none w-full">
+                <thead class="text-important">
+                    <tr class="bg-base-50 dark:bg-base-900">
+                        <th class="border-b border-base-200 font-semibold px-4 py-2 text-left dark:border-base-800">Documento</th>
+                        <th class="border-b border-base-200 font-semibold px-3 py-2 text-left dark:border-base-800">Situação</th>
+                        <th class="border-b border-base-200 font-semibold px-3 py-2 text-left dark:border-base-800">Detalhes</th>
+                        <th class="border-b border-base-200 font-semibold px-4 py-2 text-left dark:border-base-800">Arquivos</th>
+                    </tr>
+                </thead>
+                {# spaceless: um lote pode ter milhares de arquivos. #}
+                <tbody>{% spaceless %}
+                    {% for a in arquivos %}
+                        <tr>
+                            <td class="align-top border-b border-base-200 px-4 py-2 dark:border-base-800">
+                                <span class="font-medium text-important">{{ a.rotulo }}</span>
+                                {% if a.descricao and a.descricao != a.rotulo %}<div class="text-subtle text-xs">{{ a.descricao }}</div>{% endif %}
+                            </td>
+                            <td class="align-top border-b border-base-200 px-3 py-2 dark:border-base-800">{% include "unfold/helpers/label.html" with text=a.get_situacao_display variant=a.variante %}</td>
+                            <td class="align-top border-b border-base-200 px-3 py-2 text-subtle text-xs dark:border-base-800">
+                                {% if a.tamanho %}<div class="tabular-nums">{{ a.tamanho|filesizeformat }}{% if a.total_paginas %} · {{ a.total_paginas }} página{{ a.total_paginas|pluralize }}{% if a.paginas_ocr %} ({{ a.paginas_ocr }} para OCR){% endif %}{% endif %}</div>{% endif %}
+                                {% if a.mensagem %}<div>{{ a.mensagem }}</div>{% endif %}
+                            </td>
+                            <td class="align-top border-b border-base-200 px-4 py-2 whitespace-nowrap dark:border-base-800">
+                                {% if a.arquivo %}
+                                    <a href="{% url 'ingestao:original' a.pk %}" target="_blank" rel="noopener" class="text-primary-600 hover:text-primary-700 dark:text-primary-500">Original</a>
+                                    {% if a.tem_texto %} · <a href="{% url 'ingestao:texto' a.pk %}" target="_blank" rel="noopener" class="text-primary-600 hover:text-primary-700 dark:text-primary-500">Texto</a>{% endif %}
+                                {% else %}<span class="text-subtle">—</span>{% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% endspaceless %}</tbody>
+            </table>
+        </div>
+    </section>
+{% endblock %}

@@ -37,6 +37,9 @@
                     <a href="{% url 'sistemas:lista' %}" class="elo-topo-link flex font-medium gap-2 items-center px-3 py-2 rounded-default" {% if request.resolver_match.namespace == 'sistemas' %}aria-current="page"{% endif %}>
                         Sistemas
                     </a>
+                    <a href="{% url 'ingestao:lotes' %}" class="elo-topo-link flex font-medium gap-2 items-center px-3 py-2 rounded-default" {% if request.resolver_match.namespace == 'ingestao' %}aria-current="page"{% endif %}>
+                        Ingestões
+                    </a>
                 </nav>
                 {% endwith %}
 
@@ -78,6 +81,9 @@
                                 </a>
                                 <a href="{% url 'sistemas:lista' %}" class="flex items-center mx-1 px-3 py-2 rounded-default hover:bg-base-100 hover:text-base-700 dark:hover:bg-base-700 dark:hover:text-base-200">
                                     Sistemas <span class="material-symbols-outlined ml-auto">account_balance</span>
+                                </a>
+                                <a href="{% url 'ingestao:lotes' %}" class="flex items-center mx-1 px-3 py-2 rounded-default hover:bg-base-100 hover:text-base-700 dark:hover:bg-base-700 dark:hover:text-base-200">
+                                    Ingestões <span class="material-symbols-outlined ml-auto">inventory_2</span>
                                 </a>
                             </div>
 
