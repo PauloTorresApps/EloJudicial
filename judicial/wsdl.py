@@ -2,11 +2,12 @@
 
 import hashlib
 import logging
-import urllib.request
 from dataclasses import dataclass
 
 from defusedxml import ElementTree
 from django.core.cache import cache
+
+from . import http
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,6 @@ NS = {
 }
 TIMEOUT = 15  # segundos
 TAMANHO_MAXIMO = 5 * 1024 * 1024  # 5 MB
-USER_AGENT = 'EloJudicial/1.0 (+integracao MNI)'
 CACHE_SEGUNDOS = 60 * 60
 
 
@@ -32,12 +32,13 @@ class DescricaoServico:
 
 
 def _baixar(url):
-    requisicao = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
     try:
-        with urllib.request.urlopen(requisicao, timeout=TIMEOUT) as resposta:
-            conteudo = resposta.read(TAMANHO_MAXIMO + 1)
+        resposta = http.requisitar(url, timeout=TIMEOUT, limite=TAMANHO_MAXIMO)  # também passa pelo limitador
     except Exception as exc:
         raise ErroWSDL(f'Não foi possível acessar o serviço: {exc}') from exc
+    if resposta.status >= 400:
+        raise ErroWSDL(f'Não foi possível acessar o serviço: HTTP {resposta.status}')
+    conteudo = resposta.conteudo
     if len(conteudo) > TAMANHO_MAXIMO:
         raise ErroWSDL('O WSDL excede o tamanho máximo permitido.')
     return conteudo

@@ -77,7 +77,7 @@ def ingerir(request, sistema_pk, pk, numero):
             for nome, descricao, tipo in [exibidos[i]]
         ])
     acesso.guardar(lote, senha_hash)
-    enfileirar([a.pk for a in arquivos])
+    enfileirar(lote, [a.pk for a in arquivos])
     messages.success(request, f'{_arquivos(len(ids))} na fila de ingestão.')
     return redirect('ingestao:lote', pk=lote.pk)
 
@@ -124,7 +124,7 @@ def retomar(request, pk):
     acesso.guardar(lote, senha_hash)
     retomados = list(lote.arquivos.filter(situacao__in=ArquivoIngerido.RETOMAVEIS).values_list('pk', flat=True))
     ArquivoIngerido.objects.filter(pk__in=retomados).update(situacao=Situacao.PENDENTE, mensagem='')
-    enfileirar(retomados)
+    enfileirar(lote, retomados)
     messages.success(request, f'{_arquivos(len(retomados))} de volta na fila.')
     return redirect('ingestao:lote', pk=lote.pk)
 

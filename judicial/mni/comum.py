@@ -329,9 +329,16 @@ class ResultadoDocumentos:
     mensagens: list[str] = field(default_factory=list)
     documentos: list[ConteudoDocumento] = field(default_factory=list)
 
-    def documento(self, id_documento) -> ConteudoDocumento | None:
-        """O documento pedido; se o tribunal o devolver com outro id, o primeiro da resposta."""
-        return next((d for d in self.documentos if d.id == id_documento), None) or next(iter(self.documentos), None)
+    def por_id(self, ids_pedidos) -> dict[str, ConteudoDocumento]:
+        """{id pedido: conteúdo}, só dos que vieram com conteúdo, associados pelo id.
+
+        Pedido de um só documento: se o tribunal o devolver com outro id, vale o primeiro da
+        resposta. Com vários, nunca (o primeiro poderia ser de outro arquivo).
+        """
+        recebidos = {d.id: d for d in reversed(self.documentos)}  # o primeiro de cada id prevalece
+        if len(ids_pedidos) == 1 and ids_pedidos[0] not in recebidos and self.documentos:
+            recebidos[ids_pedidos[0]] = self.documentos[0]
+        return {i: recebidos[i] for i in ids_pedidos if i in recebidos and recebidos[i].dados}
 
 
 def falha_de_autenticacao(resultado) -> bool:

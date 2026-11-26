@@ -35,10 +35,25 @@ class SistemaJudicial(models.Model):
         return set(self.tipos_documento_marcados.values_list('codigo', flat=True))
 
 
+def ambiente_disponivel(prefixo=''):
+    """Critério de ambiente disponível neste servidor: ativo e, em produção, que não seja de homologação.
+
+    `prefixo` permite usá-lo a partir de outro modelo (ex.: 'ambientes__' num Count de SistemaJudicial).
+    """
+    criterio = models.Q(**{f'{prefixo}ativo': True})
+    if settings.PRODUCAO:
+        criterio &= models.Q(**{f'{prefixo}homologacao': False})
+    return criterio
+
+
 class AmbienteQuerySet(models.QuerySet):
+    def disponiveis(self):
+        """Ambientes que valem para este servidor (ver ambiente_disponivel)."""
+        return self.filter(ambiente_disponivel())
+
     def ativos(self):
-        """Ambientes utilizáveis: ativos e de sistema ativo, já com o sistema carregado."""
-        return self.select_related('sistema').filter(ativo=True, sistema__ativo=True)
+        """Ambientes utilizáveis: disponíveis e de sistema ativo, já com o sistema carregado."""
+        return self.select_related('sistema').disponiveis().filter(sistema__ativo=True)
 
 
 class Ambiente(models.Model):
@@ -59,6 +74,10 @@ class Ambiente(models.Model):
         help_text='Endereço do WSDL do serviço (ex.: MNI 3.0).',
     )
     ordem = models.PositiveSmallIntegerField('ordem', default=0, help_text='Ordem de exibição (menor primeiro).')
+    homologacao = models.BooleanField(
+        'homologação', default=False,
+        help_text='Serviço de testes do tribunal. Fica oculto quando ELOJUDICIAL_PRODUCAO=True.',
+    )
     ativo = models.BooleanField('ativo', default=True)
     criado_em = models.DateTimeField('criado em', auto_now_add=True)
     atualizado_em = models.DateTimeField('atualizado em', auto_now=True)

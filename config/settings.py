@@ -23,6 +23,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
+# Indica se o sistema está rodando em produção (ELOJUDICIAL_PRODUCAO no .env).
+PRODUCAO = os.environ.get('ELOJUDICIAL_PRODUCAO', 'False').lower() in ('1', 'true', 'yes')
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get(
     'DJANGO_SECRET_KEY',
@@ -217,6 +220,12 @@ if sys.argv[1:2] == ['test']:
 # Por quanto tempo (segundos) o hash da senha do sistema judicial fica em cache.
 # Depois disso, ao sair do EloJudicial, ou se o tribunal recusar a senha, ela é pedida de novo.
 MNI_SENHA_TTL = int(os.environ.get('MNI_SENHA_TTL', 2 * 60 * 60))
+
+# Intervalo mínimo (segundos) entre requisições ao mesmo tribunal, que também são feitas uma por
+# vez (judicial/limitador.py): rajadas de requisições podem levar ao bloqueio do IP do EloJudicial.
+MNI_INTERVALO = float(os.environ.get('MNI_INTERVALO', 2))
+if sys.argv[1:2] == ['test']:
+    MNI_INTERVALO = 0  # os testes não falam com tribunais; os do limitador ligam o intervalo
 
 # Celery (tarefas em segundo plano; ver config/celery.py). A fila fica num Redis próprio, com
 # persistência (REDIS_FILA_URL), separado do Redis de cache, que guarda dados sensíveis só em memória.

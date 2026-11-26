@@ -237,6 +237,13 @@ class DocumentoTests(Base):
             (T, 'documento', 'd1'),
         ])
 
+    def test_varios_documentos_vao_na_mesma_requisicao(self):
+        with mock.patch('urllib.request.urlopen', return_value=_Resposta(resposta_documento(self.PDF))) as urlopen:
+            mni.consultar_documentos(self.ambiente, '123', 'h', NUMERO, ['d1', 'd2', 'd3'])
+        urlopen.assert_called_once()
+        _, campos = filhos_da_requisicao(urlopen.call_args.args[0].data)
+        self.assertEqual(campos[-3:], [(T, 'documento', 'd1'), (T, 'documento', 'd2'), (T, 'documento', 'd3')])
+
     def test_conteudo_em_base64(self):
         r = mni.ClienteMNI222.interpretar_documentos(resposta_documento(self.PDF))
         self.assertTrue(r.sucesso)

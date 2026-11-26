@@ -140,8 +140,8 @@ def documento(request, sistema_pk, pk, numero, id_documento):
         senhas.esquecer(request, sistema)
         messages.error(request, 'O tribunal recusou a senha. Informe-a novamente para abrir o documento.')
         return redirect(pagina_processo)
-    doc = resultado.documento(id_documento)
-    if not resultado.sucesso or doc is None or not doc.dados:
+    doc = resultado.por_id([id_documento]).get(id_documento) if resultado.sucesso else None
+    if doc is None:
         motivo = ' '.join(resultado.mensagens) or 'o tribunal não enviou o conteúdo.'
         messages.error(request, f'Não foi possível abrir o documento: {motivo}')
         return redirect(pagina_processo)

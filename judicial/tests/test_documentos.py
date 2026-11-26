@@ -45,10 +45,38 @@ class _RespostaComTipo(_Resposta):
 
 class ClienteDocumentosTests(Base):
     def test_envelope(self):
-        corpo = mni.ClienteMNI300.envelope_consultar_documento('123', 'hash', NUMERO, 'd1').decode()
+        corpo = mni.ClienteMNI300.envelope_consultar_documentos('123', 'hash', NUMERO, ['d1']).decode()
         posicoes = [corpo.index(f':{n}') for n in ('consultante', 'numeroProcesso', 'idDocumento')]
         self.assertEqual(posicoes, sorted(posicoes))
         self.assertIn('idDocumento>d1<', corpo)
+
+    def test_envelope_com_varios_documentos_numa_requisicao(self):
+        corpo = mni.ClienteMNI300.envelope_consultar_documentos('123', 'hash', NUMERO, ['d1', 'd2', 'd3']).decode()
+        self.assertEqual(corpo.count('idDocumento>'), 6)  # abertura e fechamento de cada um
+        self.assertLess(corpo.index('idDocumento>d1<'), corpo.index('idDocumento>d2<'))
+        self.assertLess(corpo.index('idDocumento>d2<'), corpo.index('idDocumento>d3<'))
+        self.assertLess(corpo.index(':numeroProcesso'), corpo.index(':idDocumento'))
+
+    def test_varios_documentos_sao_associados_pelo_id(self):
+        r = mni.ResultadoDocumentos(sucesso=True, documentos=[
+            mni.ConteudoDocumento(id='d2', mimetype='application/pdf', dados=b'2'),
+            mni.ConteudoDocumento(id='outro', mimetype='application/pdf', dados=b'x'),
+            mni.ConteudoDocumento(id='d3', mimetype='application/pdf', dados=b''),
+        ])
+        self.assertEqual({i: d.dados for i, d in r.por_id(['d1', 'd2', 'd3']).items()}, {'d2': b'2'})
+        # Um só pedido: tolera o id diferente devolvido pelo tribunal, como documento().
+        self.assertEqual(r.por_id(['d1'])['d1'].dados, b'2')
+
+    def test_consulta_de_varios_documentos_faz_uma_requisicao(self):
+        corpo = (CABECALHO + b''.join(
+            f'<ns2:documentos><ns1:idDocumento>{i}</ns1:idDocumento><ns1:mimetype>application/pdf</ns1:mimetype>'
+            f'<ns1:conteudo>{base64.b64encode(PDF + i.encode()).decode()}</ns1:conteudo></ns2:documentos>'.encode()
+            for i in ('d1', 'd2')) + RODAPE)
+        with mock.patch('urllib.request.urlopen', return_value=_Resposta(corpo)) as urlopen:
+            r = mni.consultar_documentos(self.amb1, '123', 'hash', NUMERO, ['d1', 'd2'])
+        urlopen.assert_called_once()
+        self.assertIn(b'idDocumento>d2<', urlopen.call_args.args[0].data)
+        self.assertEqual({i: d.dados for i, d in r.por_id(['d1', 'd2']).items()}, {'d1': PDF + b'd1', 'd2': PDF + b'd2'})
 
     def test_conteudo_em_base64(self):
         r = mni.ClienteMNI300.interpretar_documentos(resposta_base64(PDF, 'application/pdf'))

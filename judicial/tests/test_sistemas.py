@@ -4,7 +4,7 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from judicial import wsdl
@@ -15,14 +15,18 @@ URL_1G = 'https://eproc1g-ws.tjto.jus.br/eprocV2_prod_1grau/wsdl.php?srv=interco
 URL_2G = 'https://eproc2g-ws.tjto.jus.br/eprocV2_prod_2grau/wsdl.php?srv=intercomunicacao3.0'
 URL_1G_22 = 'https://eproc1g-ws.tjto.jus.br/eprocV2_prod_1grau/wsdl.php?srv=intercomunicacao2.2'
 URL_2G_22 = 'https://eproc2g-ws.tjto.jus.br/eprocV2_prod_2grau/wsdl.php?srv=intercomunicacao2.2'
+URL_1G_HMLG = 'https://eproc1g.hmlg.tjto.jus.br/eproc1g-homolog/wsdl.php?srv=intercomunicacao3.0'
+URL_2G_HMLG = 'https://eproc2g.hmlg.tjto.jus.br/eproc2g-homolog/wsdl.php?srv=intercomunicacao3.0'
 
 
 class DadosIniciaisTests(TestCase):
     def test_eproc_tjto_com_ambientes_1g_e_2g(self):
         sistema = SistemaJudicial.objects.get(nome='EPROC TJTO')
         self.assertEqual(
-            list(sistema.ambientes.values_list('descricao', 'url_servico')),
-            [('1º Grau', URL_1G), ('2º Grau', URL_2G), ('1º Grau (MNI 2.2)', URL_1G_22), ('2º Grau (MNI 2.2)', URL_2G_22)],
+            list(sistema.ambientes.values_list('descricao', 'url_servico', 'homologacao')),
+            [('1º Grau', URL_1G, False), ('2º Grau', URL_2G, False), ('1º Grau (MNI 2.2)', URL_1G_22, False),
+             ('2º Grau (MNI 2.2)', URL_2G_22, False), ('1º Grau (Homologação)', URL_1G_HMLG, True),
+             ('2º Grau (Homologação)', URL_2G_HMLG, True)],
         )
         self.assertFalse(SistemaJudicial.objects.filter(nome='EPROC').exists())
 
@@ -101,10 +105,11 @@ class TelasSistemasTests(TestCase):
         for url in (reverse('sistemas:lista'), reverse('sistemas:ambientes', args=[self.eproc.pk]), self._servicos(self.amb1)):
             self.assertEqual(self.client.get(url).status_code, 302)
 
+    @override_settings(PRODUCAO=False)
     def test_lista_de_sistemas(self):
         resp = self.client.get(reverse('sistemas:lista'))
         self.assertContains(resp, 'EPROC TJTO')
-        self.assertContains(resp, '4 ambientes de trabalho')
+        self.assertContains(resp, '6 ambientes de trabalho')
         self.assertContains(resp, reverse('sistemas:ambientes', args=[self.eproc.pk]))
         pje = SistemaJudicial.objects.get(nome='PJe')
         self.assertContains(resp, reverse('sistemas:ambientes', args=[pje.pk]))  # sem ambientes: abre para cadastrar o usuário
@@ -147,6 +152,24 @@ class TelasSistemasTests(TestCase):
         baixar.assert_not_called()
         self.assertNotContains(resp, 'consultarDocumentosProcesso')
         self.assertNotContains(resp, 'Entregar petição')
+
+    @override_settings(PRODUCAO=False)
+    def test_fora_de_producao_mostra_homologacao_com_etiqueta(self):
+        hmlg = self.eproc.ambientes.filter(homologacao=True).first()
+        resp = self.client.get(reverse('sistemas:ambientes', args=[self.eproc.pk]))
+        self.assertContains(resp, self._servicos(hmlg))
+        self.assertContains(resp, 'homologação')
+        self.assertEqual(self.client.get(self._servicos(hmlg)).status_code, 200)
+
+    @override_settings(PRODUCAO=True)
+    def test_em_producao_oculta_homologacao(self):
+        hmlg = self.eproc.ambientes.filter(homologacao=True).last()
+        self.assertContains(self.client.get(reverse('sistemas:lista')), '4 ambientes de trabalho')
+        resp = self.client.get(reverse('sistemas:ambientes', args=[self.eproc.pk]))
+        self.assertContains(resp, self._servicos(self.amb1))
+        self.assertNotContains(resp, self._servicos(hmlg))
+        self.assertEqual(self.client.get(self._servicos(hmlg)).status_code, 404)
+        self.assertFalse(Ambiente.objects.ativos().filter(pk=hmlg.pk).exists())
 
     def test_ambiente_de_outro_sistema_da_404(self):
         pje = SistemaJudicial.objects.get(nome='PJe')

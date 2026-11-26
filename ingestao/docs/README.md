@@ -7,6 +7,9 @@ alternativas consideradas, os motivos e as consequências.
 Uma decisão registrada não é apagada nem reescrita. Se mudar, cria-se uma nova decisão que a
 substitui, e a antiga passa ao status "Substituída por NNNN".
 
+O fluxo completo da ingestão (download, extração e armazenamento), em diagramas, está em
+[fluxo-da-ingestao.md](fluxo-da-ingestao.md).
+
 ## Índice
 
 | Nº | Decisão | Status | Data |
@@ -16,7 +19,7 @@ substitui, e a antiga passa ao status "Substituída por NNNN".
 | [0003](0003-redis-separado-para-a-fila.md) | Redis separado para a fila, com persistência | Aceita | 2026-11-23 |
 | [0004](0004-estado-no-postgresql-mensagens-so-com-ids.md) | Estado no PostgreSQL; mensagens da fila só com ids | Aceita | 2026-11-23 |
 | [0005](0005-acesso-ao-tribunal-pelo-worker.md) | Acesso ao tribunal pelo worker sem persistir a senha | Aceita | 2026-11-23 |
-| [0006](0006-tarefas-longas-e-idempotencia.md) | Configuração para tarefas longas e idempotência | Aceita | 2026-11-23 |
+| [0006](0006-tarefas-longas-e-idempotencia.md) | Configuração para tarefas longas e idempotência | Aceita (tarefa por arquivo substituída por 0017) | 2026-11-23 |
 | [0007](0007-armazenamento-em-volume-em-disco.md) | Originais num volume em disco | Aceita | 2026-11-23 |
 | [0008](0008-extracao-de-texto-sem-ocr.md) | Extração de texto de PDF e HTML, sem OCR | Aceita (complementada por 0013) | 2026-11-23 |
 | [0009](0009-arquivos-pertencem-ao-usuario.md) | Lotes e arquivos pertencem ao usuário | Aceita | 2026-11-23 |
@@ -26,6 +29,8 @@ substitui, e a antiga passa ao status "Substituída por NNNN".
 | [0013](0013-deteccao-de-texto-por-pagina.md) | Detecção de texto por página | Aceita | 2026-11-24 |
 | [0014](0014-medicao-e-calibracao-dos-limiares.md) | Medição e calibração dos limiares | Aceita | 2026-11-24 |
 | [0015](0015-revisao-de-simplificacao.md) | Revisão de simplificação do módulo | Aceita | 2026-11-24 |
+| [0016](0016-uma-requisicao-por-vez-ao-tribunal.md) | Uma requisição por vez a cada tribunal, com intervalo mínimo | Aceita | 2026-11-25 |
+| [0017](0017-download-do-lote-numa-unica-requisicao.md) | Download do lote numa única requisição ao tribunal | Aceita | 2026-11-25 |
 
 ## Próximos passos
 
@@ -61,7 +66,10 @@ O que vem a seguir, em ordem:
    - política de retenção e tela para apagar lotes;
    - paginação e contagem de páginas guardada, se lotes grandes ficarem lentos;
    - entrega dos originais em streaming;
-   - limite de taxa por tribunal, se algum reclamar de carga.
+   - confirmar com um lote real de vários documentos que cada tribunal devolve todos na mesma
+     resposta ([0017](0017-download-do-lote-numa-unica-requisicao.md));
+   - extração em tarefas separadas do download, se lotes grandes ficarem lentos
+     ([0017](0017-download-do-lote-numa-unica-requisicao.md)).
 7. **Agentes de IA:** fila `ia` separada, orquestração (`chain`/`chord`) e limite de taxa por
    provedor, consumindo o texto das páginas já extraídas
    ([0002](0002-execucao-em-segundo-plano-com-celery.md)).
@@ -79,8 +87,10 @@ Pontos levantados que ainda precisam de decisão:
   a chave quando o lote termina (ver [0015](0015-revisao-de-simplificacao.md)).
 - **Desempenho de lotes grandes:** paginação das listas e contagem de páginas guardada no
   arquivo, se a tela do lote ficar lenta (ver [0015](0015-revisao-de-simplificacao.md)).
-- **Carga no tribunal:** o worker baixa 4 arquivos em paralelo. Se algum tribunal limitar
-  requisições, será preciso um limite de taxa por tarefa (`rate_limit`) ou por sistema.
+- **Carga no tribunal:** decidida na [0016](0016-uma-requisicao-por-vez-ao-tribunal.md) (uma
+  requisição por vez por tribunal, intervalo mínimo de 2 s) e na
+  [0017](0017-download-do-lote-numa-unica-requisicao.md) (um envelope por lote). Fica em aberto só
+  um intervalo próprio por tribunal, se algum exigir mais folga que o `MNI_INTERVALO`.
 - **Entrega de originais grandes:** o download pela tela lê o arquivo inteiro na memória (até
   100 MB). Se pesar, passar a entregar em streaming.
 - **Cascata de extração, passo 3 (depende das medições da [0014](0014-medicao-e-calibracao-dos-limiares.md)):**

@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.db.models import Count, Q
+from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -9,7 +9,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from . import mni, senhas
 from .avisos import avisos_guardados, consultar_e_registrar, ultima_consulta
 from .forms import CredencialForm
-from .models import Ambiente, Credencial, SistemaJudicial
+from .models import Ambiente, Credencial, SistemaJudicial, ambiente_disponivel
 from .preferencias import ambiente_padrao, definir_ambiente_padrao
 
 SESSAO_AMBIENTE = 'ambiente_id'
@@ -42,7 +42,7 @@ def contexto_sistemas(request, somente_com_credencial=False):
     """Sistemas ativos com o usuário (login) do usuário logado — e somente dele."""
     logins = dict(request.user.credenciais_judiciais.values_list('sistema_id', 'login'))
     sistemas = SistemaJudicial.objects.filter(ativo=True).annotate(
-        total_ambientes=Count('ambientes', filter=Q(ambientes__ativo=True))
+        total_ambientes=Count('ambientes', filter=ambiente_disponivel('ambientes__'))
     ).order_by('nome')  # Meta.ordering é ignorado em consultas com agregação
     if somente_com_credencial:
         sistemas = sistemas.filter(pk__in=logins)
@@ -64,7 +64,7 @@ def ambientes(request, pk):
     sistema = get_object_or_404(SistemaJudicial, pk=pk, ativo=True)
     return render(request, 'judicial/sistemas/ambientes.html', {
         'sistema': sistema,
-        'ambientes': sistema.ambientes.filter(ativo=True),
+        'ambientes': sistema.ambientes.disponiveis(),
         'credencial': credencial_do_usuario(request, sistema),
         'senha_ok': senhas.obter(request, sistema) is not None,
         'ambiente_atual_id': request.session.get(SESSAO_AMBIENTE),

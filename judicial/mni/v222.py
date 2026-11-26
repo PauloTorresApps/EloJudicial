@@ -6,8 +6,8 @@ Usado por PJe, Projudi, e-SAJ, eproc (srv=intercomunicacao2.2) e serviços próp
 - A autenticação vai em idConsultante/senhaConsultante, direto na requisição.
 - A resposta traz sucesso/mensagem soltos, sem recibo.
 - Os dados do processo vêm quase todos em atributos (numero, classeProcessual, nomeOrgao...).
-- Não existe consultarDocumentosProcesso: o conteúdo de um documento é pedido ao próprio
-  consultarProcesso, informando o identificador em <documento>.
+- Não existe consultarDocumentosProcesso: o conteúdo dos documentos é pedido ao próprio
+  consultarProcesso, com um <documento> por identificador (maxOccurs="unbounded").
 - Não existe consultarCompetencias: a competência fica só com o código.
 - Datas no formato AAAAMMDDHHMMSS, sem fuso: são horários de Brasília.
 """
@@ -47,9 +47,9 @@ class ClienteMNI222(ClienteMNI):
                                   documentos=incluir_documentos)
 
     @staticmethod
-    def envelope_consultar_documento(login, senha, numero, id_documento):
+    def envelope_consultar_documentos(login, senha, numero, ids_documentos):
         return _envelope_processo(login, senha, numero, movimentos=False, cabecalho=False,
-                                  documentos=True, id_documento=id_documento)
+                                  documentos=True, ids_documentos=ids_documentos)
 
     # --- interpretação -------------------------------------------------------------------------
 
@@ -128,12 +128,12 @@ def _requisicao(nome, login, senha):
     return env, req
 
 
-def _envelope_processo(login, senha, numero, *, movimentos, cabecalho, documentos, id_documento=None):
+def _envelope_processo(login, senha, numero, *, movimentos, cabecalho, documentos, ids_documentos=()):
     env, req = _requisicao('consultarProcesso', login, senha)
     SubElement(req, f'{{{NS_TIPOS_SERVICO}}}numeroProcesso').text = numero
     for nome, valor in (('movimentos', movimentos), ('incluirCabecalho', cabecalho), ('incluirDocumentos', documentos)):
         SubElement(req, f'{{{NS_TIPOS_SERVICO}}}{nome}').text = 'true' if valor else 'false'
-    if id_documento is not None:
+    for id_documento in ids_documentos:
         SubElement(req, f'{{{NS_TIPOS_SERVICO}}}documento').text = id_documento
     return serializar(env)
 

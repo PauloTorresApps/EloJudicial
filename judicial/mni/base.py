@@ -9,10 +9,10 @@ A senha do consultante nunca é registrada em log nem incluída em mensagens de 
 
 import logging
 import urllib.error
-import urllib.request
 from abc import ABC, abstractmethod
 
-from ..wsdl import USER_AGENT
+from .. import http
+from ..limitador import TribunalOcupado
 from .comum import ErroMNI, ResultadoAvisos, ResultadoDocumentos, ResultadoProcesso, RespostaGrandeDemais
 
 logger = logging.getLogger('judicial.mni')
@@ -56,7 +56,7 @@ class ClienteMNI(ABC):
 
     @staticmethod
     @abstractmethod
-    def envelope_consultar_documento(login, senha, numero, id_documento) -> bytes: ...
+    def envelope_consultar_documentos(login, senha, numero, ids_documentos) -> bytes: ...
 
     @staticmethod
     @abstractmethod
@@ -88,11 +88,18 @@ class ClienteMNI(ABC):
 
     def consultar_documento(self, login, senha, numero, id_documento) -> ResultadoDocumentos:
         """Conteúdo de um documento do processo."""
-        corpo = self.envelope_consultar_documento(login, senha, numero, id_documento)
+        return self.consultar_documentos(login, senha, numero, [id_documento])
+
+    def consultar_documentos(self, login, senha, numero, ids_documentos) -> ResultadoDocumentos:
+        """Conteúdo de vários documentos do processo numa única requisição (um id por elemento no envelope)."""
+        ids = list(ids_documentos)
+        if not ids:
+            raise ValueError('Informe ao menos um documento.')
+        corpo = self.envelope_consultar_documentos(login, senha, numero, ids)
         conteudo, tipo = self._enviar_bruto(self.OPERACAO_DOCUMENTO, corpo, limite=TAMANHO_MAXIMO_DOCUMENTO)
         # Só metadados (nunca o conteúdo): ajuda a diagnosticar o formato usado pelo tribunal.
-        logger.info('%s (MNI %s): %d bytes, Content-Type %s',
-                    self.OPERACAO_DOCUMENTO, self.VERSAO, len(conteudo), tipo or '(vazio)')
+        logger.info('%s (MNI %s): %d documento(s) pedido(s), %d bytes, Content-Type %s',
+                    self.OPERACAO_DOCUMENTO, self.VERSAO, len(ids), len(conteudo), tipo or '(vazio)')
         return self.interpretar_documentos(conteudo, tipo)
 
     def descrever_competencia(self, processo):
@@ -104,28 +111,23 @@ class ClienteMNI(ABC):
         return self._enviar_bruto(operacao, corpo)[0]
 
     def _enviar_bruto(self, operacao, corpo, limite=TAMANHO_MAXIMO):
-        """Envia a requisição SOAP e devolve (corpo da resposta, Content-Type)."""
-        requisicao = urllib.request.Request(
-            self.endereco, data=corpo, method='POST',
-            headers={'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': f'"{self.PREFIXO_ACAO}{operacao}"',
-                     'User-Agent': USER_AGENT},
-        )
+        """Envia a requisição SOAP e devolve (corpo da resposta, Content-Type).
+
+        Passa por judicial.http, que faz uma requisição por vez por tribunal, espaçadas.
+        """
+        cabecalhos = {'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': f'"{self.PREFIXO_ACAO}{operacao}"'}
         try:
-            with urllib.request.urlopen(requisicao, timeout=TIMEOUT) as resposta:
-                conteudo = resposta.read(limite + 1)
-                tipo = resposta.headers.get('Content-Type', '') if getattr(resposta, 'headers', None) else ''
-        except urllib.error.HTTPError as exc:
-            # SOAP Fault costuma vir com HTTP 500 e corpo XML.
-            conteudo = exc.read(limite + 1)
-            tipo = exc.headers.get('Content-Type', '') if exc.headers else ''
-            if not conteudo:
-                logger.warning('MNI %s: HTTP %s sem corpo', operacao, exc.code)
-                raise ErroMNI(f'O tribunal respondeu com erro (HTTP {exc.code}). Tente novamente mais tarde.') from exc
+            resposta = http.requisitar(self.endereco, dados=corpo, cabecalhos=cabecalhos, timeout=TIMEOUT, limite=limite)
+        except TribunalOcupado as exc:
+            raise ErroMNI(str(exc)) from exc
         except TimeoutError as exc:
             raise ErroMNI('O tribunal demorou demais para responder. Tente novamente em instantes.') from exc
         except (urllib.error.URLError, OSError) as exc:
             logger.warning('MNI %s: falha de conexão: %s', operacao, exc)
             raise ErroMNI('Não foi possível conectar ao tribunal. Tente novamente em instantes.') from exc
-        if len(conteudo) > limite:
+        if resposta.status >= 400 and not resposta.conteudo:  # com corpo, é um SOAP Fault: interpretado adiante
+            logger.warning('MNI %s: HTTP %s sem corpo', operacao, resposta.status)
+            raise ErroMNI(f'O tribunal respondeu com erro (HTTP {resposta.status}). Tente novamente mais tarde.')
+        if len(resposta.conteudo) > limite:
             raise RespostaGrandeDemais('A resposta do tribunal excedeu o tamanho máximo permitido.')
-        return conteudo, tipo
+        return resposta.conteudo, resposta.tipo

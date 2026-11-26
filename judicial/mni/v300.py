@@ -51,10 +51,11 @@ class ClienteMNI300(ClienteMNI):
         return serializar(env)
 
     @staticmethod
-    def envelope_consultar_documento(login, senha, numero, id_documento):
+    def envelope_consultar_documentos(login, senha, numero, ids_documentos):
         env, req = _requisicao('requisicaoConsultarDocumentosProcesso', login, senha)
         SubElement(req, f'{{{NS_SERVICO}}}numeroProcesso').text = numero
-        SubElement(req, f'{{{NS_SERVICO}}}idDocumento').text = id_documento
+        for id_documento in ids_documentos:  # idDocumento: maxOccurs="unbounded" no XSD
+            SubElement(req, f'{{{NS_SERVICO}}}idDocumento').text = id_documento
         return serializar(env)
 
     @staticmethod

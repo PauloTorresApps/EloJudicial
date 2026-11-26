@@ -1,6 +1,7 @@
 # 0006. Configuração para tarefas longas e idempotência
 
-- **Status:** Aceita
+- **Status:** Aceita. A tarefa por arquivo (`ingerir_arquivo`) foi substituída pela tarefa por lote da
+  [0017](0017-download-do-lote-numa-unica-requisicao.md); a configuração do Celery continua valendo.
 - **Data:** 2026-11-23
 - **Origem:** proposta técnica aceita
 

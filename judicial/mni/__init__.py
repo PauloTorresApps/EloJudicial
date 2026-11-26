@@ -33,6 +33,11 @@ def consultar_documento(ambiente, login, senha, numero, id_documento) -> Resulta
     return cliente(ambiente).consultar_documento(login, senha, numero, id_documento)
 
 
+def consultar_documentos(ambiente, login, senha, numero, ids_documentos) -> ResultadoDocumentos:
+    """Vários documentos numa única requisição ao tribunal."""
+    return cliente(ambiente).consultar_documentos(login, senha, numero, ids_documentos)
+
+
 def descrever_competencia(ambiente, processo):
     """Preenche processo.competencia_descricao quando a versão permite. Falhas não impedem a exibição."""
     try:
@@ -46,6 +51,6 @@ __all__ = [
     'Aviso', 'ClienteMNI', 'ClienteMNI222', 'ClienteMNI300', 'ConteudoDocumento', 'DescricaoAviso', 'Documento',
     'ErroMNI', 'Movimento', 'NumeroInvalido', 'Parte', 'Polo', 'Processo', 'Representante', 'RespostaGrandeDemais',
     'ResultadoAvisos', 'ResultadoDocumentos', 'ResultadoProcesso', 'cliente', 'consultar_avisos_pendentes',
-    'consultar_documento', 'consultar_processo', 'descrever_competencia', 'falha_de_autenticacao',
-    'formatar_documento', 'formatar_numero_processo', 'formatar_oab', 'normalizar_numero_processo',
+    'consultar_documento', 'consultar_documentos', 'consultar_processo', 'descrever_competencia',
+    'falha_de_autenticacao', 'formatar_documento', 'formatar_numero_processo', 'formatar_oab', 'normalizar_numero_processo',
 ]

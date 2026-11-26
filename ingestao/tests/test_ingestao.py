@@ -76,6 +76,11 @@ def resposta(id_documento, dados, mimetype):
     return mni.ResultadoDocumentos(sucesso=True, documentos=[mni.ConteudoDocumento(id=id_documento, mimetype=mimetype, dados=dados)])
 
 
+def tribunal_lote(ids_documentos, **_):
+    """consultar_documentos simulado: os documentos de tribunal() numa única resposta."""
+    return mni.ResultadoDocumentos(sucesso=True, documentos=[d for i in ids_documentos for d in tribunal(i).documentos])
+
+
 def tribunal(id_documento, **_):
     """consultar_documento simulado (ids da tabela de exemplo): d1 é um PDF com texto, d1a um PDF misto
     (texto, página escaneada com carimbo, página em branco), d2 um PDF digitalizado e d3 um HTML."""
@@ -105,13 +110,13 @@ class IngestaoTests(ArmazenamentoTemporario, Base):
         """Abre a tabela de eventos (guarda os documentos exibidos, como na tela real)."""
         return self.dados_do_processo(mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO))
 
-    def ingerir(self, ids, consultar=tribunal):
+    def ingerir(self, ids, consultar=tribunal_lote):
         url = reverse('ingestao:ingerir', args=[self.eproc.pk, self.amb1.pk, NUMERO])
-        with mock.patch.object(mni, 'consultar_documento', side_effect=lambda amb, login, senha, numero, id_documento:
-                               consultar(id_documento, login=login, senha=senha)) as consultar_documento, \
+        with mock.patch.object(mni, 'consultar_documentos', side_effect=lambda amb, login, senha, numero, ids_documentos:
+                               consultar(list(ids_documentos), login=login, senha=senha)) as consultar_documentos, \
                 self.captureOnCommitCallbacks(execute=True):
             resp = self.client.post(url, {'documentos': ids})
-        return resp, consultar_documento
+        return resp, consultar_documentos
 
     def test_tabela_de_eventos_tem_o_formulario_e_o_botao(self):
         resp = self.exibir_processo()
@@ -126,8 +131,10 @@ class IngestaoTests(ArmazenamentoTemporario, Base):
         self.assertEqual((lote.usuario, lote.ambiente, lote.numero_processo, lote.login), (self.user, self.amb1, NUMERO, '123'))
         # Sem repetição e só ids que estavam na tabela.
         self.assertEqual(list(lote.arquivos.values_list('id_documento', flat=True)), ['d1', 'd3'])
-        # A senha (hash) chega ao tribunal, mas o job só levou o id do arquivo.
-        self.assertEqual(consultar.call_count, 2)
+        # Uma única requisição ao tribunal para o lote, com os ids na ordem da tabela.
+        # A senha (hash) chega ao tribunal, mas o job só levou os ids.
+        self.assertEqual(consultar.call_count, 1)
+        self.assertEqual(consultar.call_args.args[4], ['d1', 'd3'])
         self.assertEqual(consultar.call_args.args[2], hashlib.sha256(self.SENHA.encode()).hexdigest())
 
         inicial, certidao = lote.arquivos.all()
@@ -186,7 +193,7 @@ class IngestaoTests(ArmazenamentoTemporario, Base):
         arquivo = ArquivoIngerido.objects.get()
         self.assertEqual(arquivo.situacao, Situacao.AGUARDANDO_SENHA)
 
-        with mock.patch.object(mni, 'consultar_documento', side_effect=lambda *a: tribunal(a[4])), \
+        with mock.patch.object(mni, 'consultar_documentos', side_effect=lambda *a: tribunal_lote(a[4])), \
                 self.captureOnCommitCallbacks(execute=True):
             self.client.post(reverse('ingestao:retomar', args=[arquivo.lote_id]))
         arquivo.refresh_from_db()
@@ -212,12 +219,67 @@ class IngestaoTests(ArmazenamentoTemporario, Base):
         self.assertEqual((arquivo.situacao, arquivo.mensagem), (Situacao.ERRO, 'Não foi possível conectar ao tribunal.'))
 
     def test_arquivo_concluido_nao_e_baixado_de_novo(self):
-        from ingestao.tasks import ingerir_arquivo
+        from ingestao.tasks import ingerir_arquivo, ingerir_lote
         self.exibir_processo()
         _, consultar = self.ingerir(['d1'])
-        with mock.patch.object(mni, 'consultar_documento') as de_novo:
-            ingerir_arquivo.delay(ArquivoIngerido.objects.get().pk)  # mensagem entregue duas vezes
+        arquivo = ArquivoIngerido.objects.get()
+        with mock.patch.object(mni, 'consultar_documentos') as de_novo:
+            ingerir_lote.delay(arquivo.lote_id, [arquivo.pk])  # mensagem entregue duas vezes
+            ingerir_arquivo.delay(arquivo.pk)  # mensagem antiga (um arquivo por tarefa)
         de_novo.assert_not_called()
+
+    def test_documento_que_nao_veio_na_resposta_so_falha_ele(self):
+        self.exibir_processo()
+        # Sem a tolerância de consulta única: d3 não pode receber o conteúdo de d1.
+        self.ingerir(['d1', 'd3'], consultar=lambda ids, **k: tribunal_lote(['d1']))
+        inicial, certidao = ArquivoIngerido.objects.order_by('pk')
+        self.assertEqual(inicial.situacao, Situacao.PRONTO)
+        self.assertEqual((certidao.situacao, certidao.mensagem), (Situacao.ERRO, 'O tribunal não enviou o conteúdo.'))
+        self.assertFalse(certidao.arquivo)
+
+    def test_resposta_grande_demais_divide_o_lote_ao_meio(self):
+        self.exibir_processo()
+
+        def limitado(ids, **_):
+            if len(ids) > 1:
+                raise mni.RespostaGrandeDemais('A resposta do tribunal excedeu o tamanho máximo permitido.')
+            return tribunal_lote(ids)
+
+        _, consultar = self.ingerir(['d1', 'd1a', 'd3'], consultar=limitado)
+        # [d1, d1a, d3] → [d1] e [d1a, d3] → [d1a] e [d3]
+        self.assertEqual([c.args[4] for c in consultar.call_args_list],
+                         [['d1', 'd1a', 'd3'], ['d1'], ['d1a', 'd3'], ['d1a'], ['d3']])
+        self.assertEqual(list(ArquivoIngerido.objects.order_by('pk').values_list('situacao', flat=True)),
+                         [Situacao.PRONTO, Situacao.PARCIAL, Situacao.PRONTO])
+
+    def test_senha_recusada_no_lote_dividido_nao_faz_novos_pedidos(self):
+        self.exibir_processo()
+        recusa = mni.ResultadoDocumentos(sucesso=False, mensagens=['Falha na autenticação: senha inválida'])
+
+        def grande_e_depois_recusa(ids, **_):
+            if len(ids) > 1:
+                raise mni.RespostaGrandeDemais('grande')
+            return recusa
+
+        _, consultar = self.ingerir(['d1', 'd3'], consultar=grande_e_depois_recusa)
+        self.assertEqual([c.args[4] for c in consultar.call_args_list], [['d1', 'd3'], ['d1']])  # o d3 não é pedido
+        self.assertEqual(set(ArquivoIngerido.objects.values_list('situacao', flat=True)), {Situacao.AGUARDANDO_SENHA})
+
+    def test_falha_no_meio_do_lote_dividido_so_repete_o_que_faltou(self):
+        self.exibir_processo()
+        tentativas = []
+
+        def instavel(ids, **_):
+            tentativas.append(ids)
+            if len(ids) > 1:
+                raise mni.RespostaGrandeDemais('grande')
+            if ids == ['d3'] and len(tentativas) == 3:
+                raise mni.ErroMNI('Não foi possível conectar ao tribunal.')
+            return tribunal_lote(ids)
+
+        self.ingerir(['d1', 'd3'], consultar=instavel)
+        self.assertEqual(tentativas, [['d1', 'd3'], ['d1'], ['d3'], ['d3']])  # a nova tentativa leva só o d3
+        self.assertEqual(set(ArquivoIngerido.objects.values_list('situacao', flat=True)), {Situacao.PRONTO})
 
     def test_paginas_do_lote_original_e_texto(self):
         self.exibir_processo()
@@ -235,7 +297,7 @@ class IngestaoTests(ArmazenamentoTemporario, Base):
 
     def test_andamento_consulta_ate_terminar(self):
         self.exibir_processo()
-        with mock.patch('ingestao.tasks.ingerir_arquivo.delay'):  # fica na fila
+        with mock.patch('ingestao.tasks.ingerir_lote.delay'):  # fica na fila
             self.ingerir(['d1'])
         lote = LoteIngestao.objects.get()
         url = reverse('ingestao:andamento', args=[lote.pk])
@@ -267,7 +329,7 @@ class IngestaoTests(ArmazenamentoTemporario, Base):
 
     def test_sair_descarta_o_acesso_dos_lotes_em_andamento(self):
         self.exibir_processo()
-        with mock.patch('ingestao.tasks.ingerir_arquivo.delay'):
+        with mock.patch('ingestao.tasks.ingerir_lote.delay'):
             self.ingerir(['d1'])
         lote = LoteIngestao.objects.get()
         self.assertIsNotNone(acesso.obter(lote))
@@ -282,7 +344,7 @@ class MedicaoTests(ArmazenamentoTemporario, Base):
         super().setUp()
         self.dados_do_processo(mni.ClienteMNI300.interpretar_processo(RESPOSTA_PROCESSO))
         url = reverse('ingestao:ingerir', args=[self.eproc.pk, self.amb1.pk, NUMERO])
-        with mock.patch.object(mni, 'consultar_documento', side_effect=lambda *a: tribunal(a[4])), \
+        with mock.patch.object(mni, 'consultar_documentos', side_effect=lambda *a: tribunal_lote(a[4])), \
                 self.captureOnCommitCallbacks(execute=True):
             self.client.post(url, {'documentos': ['d1', 'd1a', 'd2', 'd3']})
 
@@ -314,7 +376,7 @@ class MedicaoTests(ArmazenamentoTemporario, Base):
     def test_reextrair_aplica_novos_limiares_sem_consultar_o_tribunal(self):
         novos = dataclasses.replace(extracao.LIMIARES, min_caracteres_com_imagem=10)
         saida = StringIO()
-        with mock.patch.object(extracao, 'LIMIARES', novos), mock.patch.object(mni, 'consultar_documento') as tribunal_:
+        with mock.patch.object(extracao, 'LIMIARES', novos), mock.patch.object(mni, 'consultar_documentos') as tribunal_:
             call_command('reextrair', '--todos', stdout=saida)
         tribunal_.assert_not_called()
         self.assertIn('4 arquivo(s) reprocessado(s); 2 mudaram de situação.', saida.getvalue())

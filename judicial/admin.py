@@ -10,7 +10,7 @@ from .models import Ambiente, SistemaJudicial, TipoDocumentoMarcado
 
 class AmbienteInline(TabularInline):
     model = Ambiente
-    fields = ['descricao', 'url_servico', 'ordem', 'ativo']
+    fields = ['descricao', 'url_servico', 'ordem', 'homologacao', 'ativo']
     extra = 0
     tab = True
     verbose_name = 'ambiente'
@@ -53,8 +53,8 @@ class SistemaJudicialAdmin(ModelAdmin):
 
 @admin.register(Ambiente)
 class AmbienteAdmin(ModelAdmin):
-    list_display = ['descricao', 'sistema', 'url_servico', 'ordem', 'ativo']
-    list_filter = ['sistema', 'ativo']
+    list_display = ['descricao', 'sistema', 'url_servico', 'ordem', 'homologacao', 'ativo']
+    list_filter = ['sistema', 'homologacao', 'ativo']
     search_fields = ['descricao', 'url_servico', 'sistema__nome']
     list_select_related = ['sistema']
     autocomplete_fields = ['sistema']
