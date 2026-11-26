@@ -77,6 +77,9 @@ por arquivo.
 - A extração de texto dos arquivos de um mesmo lote passou a ser sequencial (antes até 4 em
   paralelo). Lotes diferentes continuam em paralelo no worker.
 - Cada divisão por tamanho baixa e descarta uma resposta de até 100 MB antes de pedir as metades.
-- **A confirmar em produção:** ainda não foi ingerido um lote real com vários documentos. Falta
-  conferir se cada tribunal devolve todos os documentos pedidos na mesma resposta (os testes
-  simulam esse comportamento).
+- **Confirmado em produção (2026-11-25), eproc do TJTO, 1º Grau, MNI 3.0:** um lote de 27
+  documentos foi baixado numa **única** requisição `consultarDocumentosProcesso` (resposta de
+  10,9 MB, com os documentos em anexos MTOM). Os 27 chegaram: 16 com texto ("Pronto") e 11 sem texto
+  aproveitável (para OCR), nenhum com erro. Falta confirmar nos outros sistemas (PJe, e-SAJ,
+  Projudi) e no MNI 2.2. A homologação do eproc do TJTO não tem documentos, então não serve para
+  esse teste.

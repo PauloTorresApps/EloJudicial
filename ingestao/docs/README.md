@@ -66,8 +66,9 @@ O que vem a seguir, em ordem:
    - política de retenção e tela para apagar lotes;
    - paginação e contagem de páginas guardada, se lotes grandes ficarem lentos;
    - entrega dos originais em streaming;
-   - confirmar com um lote real de vários documentos que cada tribunal devolve todos na mesma
-     resposta ([0017](0017-download-do-lote-numa-unica-requisicao.md));
+   - confirmar nos outros sistemas (PJe, e-SAJ, Projudi) e no MNI 2.2 que o tribunal devolve
+     todos os documentos na mesma resposta; no eproc do TJTO (MNI 3.0) já confirmado
+     ([0017](0017-download-do-lote-numa-unica-requisicao.md));
    - extração em tarefas separadas do download, se lotes grandes ficarem lentos
      ([0017](0017-download-do-lote-numa-unica-requisicao.md)).
 7. **Agentes de IA:** fila `ia` separada, orquestração (`chain`/`chord`) e limite de taxa por
