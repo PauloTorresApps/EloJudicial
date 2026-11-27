@@ -21,6 +21,7 @@ from ingestao.models import ArquivoIngerido, PaginaExtraida
 
 FAIXAS_CARACTERES = [(0, 0), (1, 19), (20, 99), (100, 299), (300, 999), (1000, None)]
 FAIXAS_QUALIDADE = [(0, 0.3), (0.3, 0.5), (0.5, 0.6), (0.6, 0.7), (0.7, 0.8), (0.8, 0.9), (0.9, None)]
+FAIXAS_CONFIANCA = [(0, 0.5), (0.5, 0.7), (0.7, 0.85), (0.85, 0.9), (0.9, 0.95), (0.95, None)]
 FAIXAS_IMAGEM = [(0, 0), (1, 99_999), (100_000, 499_999), (500_000, 999_999), (1_000_000, 1_999_999), (2_000_000, None)]
 
 
@@ -64,11 +65,18 @@ class Command(BaseCommand):
         paginas, caracteres, qualidade, imagem, transicoes = Counter(), Counter(), Counter(), Counter(), Counter()
         por_sistema = defaultdict(lambda: {'paginas': 0, 'precisam_ocr': 0})
         imagens_avulsas = 0
+        por_ocr, confianca = Counter(), Counter()
         consulta = PaginaExtraida.objects.filter(arquivo__in=arquivos).values_list(
-            'situacao', 'caracteres', 'qualidade', 'maior_imagem', 'arquivo__mimetype', 'arquivo__lote__ambiente__sistema__nome',
+            'situacao', 'caracteres', 'qualidade', 'maior_imagem', 'metodo', 'confianca',
+            'arquivo__mimetype', 'arquivo__lote__ambiente__sistema__nome',
         )
-        for situacao, chars, qual, maior, mimetype, sistema in consulta.iterator(chunk_size=5000):
+        for situacao, chars, qual, maior, metodo, conf, mimetype, sistema in consulta.iterator(chunk_size=5000):
             por_sistema[sistema]['paginas'] += 1
+            if metodo != PaginaExtraida.Metodo.NATIVO:
+                # Lida por OCR: texto e métricas são do OCR, não servem para calibrar os limiares do nativo.
+                por_ocr[(metodo, situacao)] += 1
+                confianca[(metodo, _faixa(conf or 0, FAIXAS_CONFIANCA, inteiro=False))] += 1
+                continue
             por_sistema[sistema]['precisam_ocr'] += situacao in PRECISAM_OCR
             if mimetype.startswith('image/'):
                 imagens_avulsas += 1  # sempre vão para OCR; não entram nas distribuições
@@ -90,6 +98,10 @@ class Command(BaseCommand):
         }
         relatorio['qualidade_do_texto'] = {_rotulo(i, f, False): qualidade[_rotulo(i, f, False)] for i, f in FAIXAS_QUALIDADE}
         relatorio['maior_imagem_pixels'] = {_rotulo(i, f, True): imagem[_rotulo(i, f, True)] for i, f in FAIXAS_IMAGEM}
+        relatorio['ocr'] = {
+            'paginas_por_metodo_e_situacao': {f'{m} / {s}': n for (m, s), n in sorted(por_ocr.items())},
+            'confianca': {f'{m} / {faixa}': n for (m, faixa), n in sorted(confianca.items())},
+        }
         if simulados:
             relatorio['simulacao'] = {
                 'limiares': dataclasses.asdict(simulados),
@@ -124,7 +136,7 @@ class Command(BaseCommand):
         self._tabela(r['arquivos_por_situacao'])
         escrever('Arquivos por tipo:')
         self._tabela(r['arquivos_por_tipo'])
-        escrever(f'Páginas: {total_paginas} (imagens avulsas, sempre para OCR: {r["imagens_avulsas"]})')
+        escrever(f'Páginas com o texto nativo: {total_paginas} (imagens avulsas, sempre para OCR: {r["imagens_avulsas"]})')
         self._tabela(r['paginas_por_situacao'], total=total_paginas)
         escrever('Páginas por sistema (total / precisam de OCR):')
         for sistema, n in r['paginas_por_sistema'].items():
@@ -138,6 +150,11 @@ class Command(BaseCommand):
         self._tabela(r['qualidade_do_texto'])
         escrever('Maior imagem da página (pixels):')
         self._tabela(r['maior_imagem_pixels'])
+        if r['ocr']['paginas_por_metodo_e_situacao']:
+            escrever('Páginas lidas por OCR (método / situação):')
+            self._tabela(r['ocr']['paginas_por_metodo_e_situacao'])
+            escrever('Confiança do OCR (método / faixa):')
+            self._tabela(r['ocr']['confianca'])
         if 'simulacao' in r:
             s = r['simulacao']
             escrever('Simulação: ' + ', '.join(f'{k}={v}' for k, v in s['limiares'].items()))

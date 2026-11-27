@@ -126,6 +126,10 @@ class PaginaExtraida(models.Model):
 
     class Metodo(models.TextChoices):
         NATIVO = 'nativo', 'Texto do próprio arquivo'
+        OCR_TESSERACT = 'ocr_tesseract', 'OCR (Tesseract)'
+        OCR_RAPID = 'ocr_rapid', 'OCR (RapidOCR)'
+
+    POR_OCR = (Metodo.OCR_TESSERACT, Metodo.OCR_RAPID)
 
     arquivo = models.ForeignKey(ArquivoIngerido, on_delete=models.CASCADE, related_name='paginas', verbose_name='arquivo')
     numero = models.PositiveIntegerField('página')
@@ -134,6 +138,7 @@ class PaginaExtraida(models.Model):
     texto = models.TextField('texto', blank=True)
     caracteres = models.PositiveIntegerField('caracteres (sem espaços)', default=0)
     qualidade = models.FloatField('qualidade do texto (0 a 1)', null=True, blank=True)
+    confianca = models.FloatField('confiança do OCR (0 a 1)', null=True, blank=True)  # nula no texto nativo
     maior_imagem = models.PositiveBigIntegerField('maior imagem (pixels)', default=0)
 
     class Meta:

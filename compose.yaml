@@ -77,6 +77,18 @@ services:
       <<: *app-env
       DJANGO_MIGRATE: "0"  # as migrações ficam a cargo do web
 
+  # OCR das páginas sem texto (fila "ocr"; ingestao/docs/0018 e 0019). Imagem própria, com o
+  # Tesseract e o RapidOCR. Lê os originais do volume e não chama o tribunal: pode ter paralelismo.
+  worker-ocr:
+    <<: *app
+    build:
+      context: .
+      target: ocr
+    command: ["celery", "-A", "config", "worker", "-Q", "ocr", "--concurrency", "${OCR_CONCORRENCIA:-4}", "--loglevel", "INFO"]
+    environment:
+      <<: *app-env
+      DJANGO_MIGRATE: "0"
+
   # Único ponto de entrada externo (80 e 443). Os demais serviços não publicam portas:
   # o sistema é servido pelo nginx e o banco/Redis são alcançados pela 443 via SNI.
   nginx:

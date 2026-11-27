@@ -13,16 +13,17 @@ from django.contrib.auth import get_user_model
 from django.core.management import CommandError, call_command
 from django.core.cache import cache
 from django.core.files.storage import FileSystemStorage
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 
 from ingestao import acesso, extracao
 from ingestao.extracao import (
     COM_TEXTO, EM_BRANCO, SEM_TEXTO, TEXTO_RUIM, Extracao, classificar, extrair_texto, qualidade_do_texto,
 )
-from ingestao.tasks import situacao_do_arquivo
+from ingestao.tasks import ler_pagina, reconhecer_arquivo, situacao_do_arquivo
 from ingestao.models import ArquivoIngerido, LoteIngestao, PaginaExtraida
 from judicial import mni
+from ocr import Leitura
 from judicial.tests.test_processos import NUMERO, RESPOSTA_PROCESSO, Base
 
 Situacao = ArquivoIngerido.Situacao
@@ -364,7 +365,7 @@ class MedicaoTests(ArmazenamentoTemporario, Base):
         self.assertEqual(r['caracteres_por_pagina']['20–99'], {'sem_imagem_grande': 3, 'com_imagem_grande': 2})
         self.assertNotIn('simulacao', r)
         texto = self.estatisticas()
-        self.assertIn('Páginas: 6', texto)
+        self.assertIn('Páginas com o texto nativo: 6', texto)
         self.assertNotIn('Sentenca', texto)  # nenhum conteúdo de documento no relatório
         self.assertEqual(self.estatisticas('--json', '--sistema', 'PJE TJBA').count('"pronto"'), 0)
 
@@ -447,3 +448,89 @@ class ExtracaoTests(SimpleTestCase):
             situacao(escaneada, escaneada, com_texto, escaneada, com_texto, escaneada, escaneada, escaneada),
             (Situacao.PARCIAL, '6 de 8 páginas precisam de OCR (páginas 1–2, 4, 6–8).'),
         )
+
+
+BOM = 'Certifico que o réu foi intimado pessoalmente nesta data, conforme o mandado juntado aos autos.'
+RUIM = '@#% ~~ |||| ^^ ;;; ,,, }{ ¨¨ ## %% && ** ++ == << >> ´´'
+
+
+@override_settings(INGESTAO_OCR=True)
+class OcrTests(ArmazenamentoTemporario, Base):
+    """Orquestração do OCR (docs/0018 e 0019), com os motores simulados: eles só existem na imagem "ocr"."""
+
+    exibir_processo = IngestaoTests.exibir_processo
+    ingerir = IngestaoTests.ingerir
+
+    def setUp(self):
+        super().setUp()
+        self.tesseract = self.simular('tesseract', Leitura(BOM, 0.93, 'tesseract', 0.1))
+        self.rapid = self.simular('rapid', Leitura(BOM, 0.99, 'rapid', 0.1))
+        self.simular('paginas', side_effect=lambda dados, mimetype, numeros: ((n, f'imagem {n}') for n in numeros))
+        self.exibir_processo()
+
+    def simular(self, nome, retorno=None, **kwargs):
+        simulado = mock.patch(f'ocr.{nome}', return_value=retorno, **kwargs).start()
+        self.addCleanup(mock.patch.stopall)
+        return simulado
+
+    def test_pagina_escaneada_ganha_o_texto_do_tesseract(self):
+        self.ingerir(['d2'])
+        arquivo = ArquivoIngerido.objects.get()
+        self.assertEqual((arquivo.situacao, arquivo.mensagem), (Situacao.PRONTO, ''))
+        pagina = arquivo.paginas.get()
+        self.assertEqual((pagina.texto, pagina.metodo, pagina.confianca, pagina.situacao),
+                         (BOM, 'ocr_tesseract', 0.93, 'com_texto'))
+        self.assertEqual(pagina.maior_imagem, SCAN[0] * SCAN[1])  # a métrica da imagem fica
+        self.rapid.assert_not_called()
+
+    def test_so_as_paginas_que_precisam_vao_para_o_ocr(self):
+        self.ingerir(['d1', 'd1a'])
+        self.assertEqual(self.tesseract.call_count, 1)  # d1 tem texto; no d1a, só a página 2 é escaneada
+        misto = ArquivoIngerido.objects.get(id_documento='d1a')
+        self.assertEqual(list(misto.paginas.values_list('numero', 'metodo')),
+                         [(1, 'nativo'), (2, 'ocr_tesseract'), (3, 'nativo')])
+        self.assertEqual(misto.situacao, Situacao.PRONTO)
+
+    def test_confianca_baixa_tenta_o_rapidocr_e_fica_a_melhor_leitura(self):
+        self.tesseract.return_value = Leitura(RUIM, 0.5, 'tesseract', 0.1)
+        self.ingerir(['d2'])
+        pagina = PaginaExtraida.objects.get()
+        self.assertEqual((pagina.texto, pagina.metodo, pagina.confianca), (BOM, 'ocr_rapid', 0.99))
+
+    def test_a_leitura_de_melhor_qualidade_vence_mesmo_com_confianca_menor(self):
+        self.tesseract.return_value = Leitura(BOM, 0.6, 'tesseract', 0.1)
+        self.rapid.return_value = Leitura(RUIM, 0.97, 'rapid', 0.1)
+        self.assertEqual(ler_pagina('imagem').motor, 'tesseract')
+
+    def test_ilegivel_mesmo_depois_do_ocr(self):
+        self.tesseract.return_value = Leitura(RUIM, 0.4, 'tesseract', 0.1)
+        self.rapid.return_value = Leitura(RUIM, 0.95, 'rapid', 0.1)
+        self.ingerir(['d2'])
+        arquivo = ArquivoIngerido.objects.get()
+        self.assertEqual((arquivo.situacao, arquivo.mensagem),
+                         (Situacao.SEM_TEXTO, 'Sem texto aproveitável mesmo depois do OCR (página 1).'))
+        self.assertEqual(arquivo.paginas.get().situacao, 'texto_ruim')  # fica para o multimodal
+        resp = self.client.get(reverse('ingestao:lote', args=[arquivo.lote_id]))
+        self.assertNotContains(resp, 'para OCR')
+
+    def test_idempotente_e_reaproveita_o_mesmo_documento_de_outro_lote(self):
+        self.ingerir(['d2'])
+        primeiro = ArquivoIngerido.objects.get()
+        reconhecer_arquivo(primeiro.pk)  # mensagem repetida: nada a fazer
+        self.ingerir(['d2'])  # mesmo conteúdo (SHA-256), outro lote
+        self.assertEqual(self.tesseract.call_count, 1)
+        segundo = ArquivoIngerido.objects.exclude(pk=primeiro.pk).get()
+        self.assertEqual((segundo.situacao, segundo.paginas.get().texto), (Situacao.PRONTO, BOM))
+
+    def test_reextrair_devolve_as_paginas_ao_ocr(self):
+        self.ingerir(['d2'])
+        with self.captureOnCommitCallbacks(execute=True):
+            call_command('reextrair', '--todos', stdout=StringIO())
+        self.assertEqual(self.tesseract.call_count, 2)
+        self.assertEqual(PaginaExtraida.objects.get().metodo, 'ocr_tesseract')
+
+    @override_settings(INGESTAO_OCR=False)
+    def test_desligado_nao_poe_na_fila(self):
+        self.ingerir(['d2'])
+        self.tesseract.assert_not_called()
+        self.assertEqual(ArquivoIngerido.objects.get().situacao, Situacao.SEM_TEXTO)

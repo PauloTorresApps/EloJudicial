@@ -240,10 +240,17 @@ CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_BROKER_TRANSPORT_OPTIONS = {'visibility_timeout': 2 * 60 * 60}
-CELERY_TASK_ROUTES = {'ingestao.*': {'queue': 'ingestao'}}
+CELERY_TASK_ROUTES = {
+    'ingestao.reconhecer_arquivo': {'queue': 'ocr'},  # worker-ocr (ingestao/docs/0018); o nome exato vence o padrão
+    'ingestao.*': {'queue': 'ingestao'},
+}
+# Páginas sem texto aproveitável vão para a fila "ocr" depois da extração.
+INGESTAO_OCR = os.environ.get('INGESTAO_OCR', '1') == '1'
 if sys.argv[1:2] == ['test'] or not os.environ.get('REDIS_FILA_URL'):
     # Testes e execução fora do Docker: a tarefa roda na hora, no próprio processo.
     CELERY_TASK_ALWAYS_EAGER = True
+    # O OCR depende de pacotes que só a imagem "ocr" tem; os testes o ligam com os motores simulados.
+    INGESTAO_OCR = False
 
 # Logs: mensagens da integração (judicial) no console do container.
 LOGGING = {
