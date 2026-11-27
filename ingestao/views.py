@@ -98,8 +98,7 @@ def lote(request, pk):
         # Páginas por arquivo e quantas precisam de OCR, numa só consulta (um lote pode ter milhares de arquivos).
         'arquivos': lote.arquivos.annotate(
             total_paginas=Count('paginas'),
-            paginas_ocr=Count('paginas', filter=Q(paginas__situacao__in=PaginaExtraida.PRECISAM_OCR,
-                                                  paginas__metodo=PaginaExtraida.Metodo.NATIVO)),
+            paginas_ocr=Count('paginas', filter=Q(paginas__situacao__in=PaginaExtraida.PRECISAM_OCR)),
         ),
         'senha_ok': senhas.obter(request, sistema) is not None,
         'credencial': credencial_do_usuario(request, sistema),

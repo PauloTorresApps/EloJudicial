@@ -72,7 +72,7 @@ class ArquivoIngerido(models.Model):
     arquivo = models.FileField('arquivo original', storage=_armazenamento, upload_to=_caminho, max_length=255, blank=True)
     mimetype = models.CharField('tipo do arquivo', max_length=100, blank=True)
     tamanho = models.PositiveBigIntegerField('tamanho (bytes)', null=True, blank=True)
-    sha256 = models.CharField('SHA-256', max_length=64, blank=True)
+    sha256 = models.CharField('SHA-256', max_length=64, blank=True, db_index=True)  # reaproveitamento do OCR
     codificacao = models.CharField('codificação informada pelo tribunal', max_length=50, blank=True)
     atualizado_em = models.DateTimeField('atualizado em', auto_now=True)
 
@@ -121,15 +121,14 @@ class PaginaExtraida(models.Model):
         EM_BRANCO = extracao.EM_BRANCO, 'Em branco'
         SEM_TEXTO = extracao.SEM_TEXTO, 'Digitalizada (sem texto)'
         TEXTO_RUIM = extracao.TEXTO_RUIM, 'Texto de baixa qualidade'
+        ILEGIVEL = extracao.ILEGIVEL, 'Ilegível mesmo com OCR'
 
     PRECISAM_OCR = extracao.PRECISAM_OCR
 
     class Metodo(models.TextChoices):
         NATIVO = 'nativo', 'Texto do próprio arquivo'
         OCR_TESSERACT = 'ocr_tesseract', 'OCR (Tesseract)'
-        OCR_RAPID = 'ocr_rapid', 'OCR (RapidOCR)'
-
-    POR_OCR = (Metodo.OCR_TESSERACT, Metodo.OCR_RAPID)
+        OCR_RAPID = 'ocr_rapid', 'OCR (RapidOCR)'  # valores ocr_<motor>, o nome de ocr.Leitura.motor
 
     arquivo = models.ForeignKey(ArquivoIngerido, on_delete=models.CASCADE, related_name='paginas', verbose_name='arquivo')
     numero = models.PositiveIntegerField('página')

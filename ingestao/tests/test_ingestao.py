@@ -469,9 +469,9 @@ class OcrTests(ArmazenamentoTemporario, Base):
         self.exibir_processo()
 
     def simular(self, nome, retorno=None, **kwargs):
-        simulado = mock.patch(f'ocr.{nome}', return_value=retorno, **kwargs).start()
-        self.addCleanup(mock.patch.stopall)
-        return simulado
+        patcher = mock.patch(f'ocr.{nome}', return_value=retorno, **kwargs)
+        self.addCleanup(patcher.stop)
+        return patcher.start()
 
     def test_pagina_escaneada_ganha_o_texto_do_tesseract(self):
         self.ingerir(['d2'])
@@ -502,14 +502,16 @@ class OcrTests(ArmazenamentoTemporario, Base):
         self.rapid.return_value = Leitura(RUIM, 0.97, 'rapid', 0.1)
         self.assertEqual(ler_pagina('imagem').motor, 'tesseract')
 
-    def test_ilegivel_mesmo_depois_do_ocr(self):
+    def test_ilegivel_mesmo_com_ocr(self):
         self.tesseract.return_value = Leitura(RUIM, 0.4, 'tesseract', 0.1)
         self.rapid.return_value = Leitura(RUIM, 0.95, 'rapid', 0.1)
         self.ingerir(['d2'])
         arquivo = ArquivoIngerido.objects.get()
         self.assertEqual((arquivo.situacao, arquivo.mensagem),
-                         (Situacao.SEM_TEXTO, 'Sem texto aproveitável mesmo depois do OCR (página 1).'))
-        self.assertEqual(arquivo.paginas.get().situacao, 'texto_ruim')  # fica para o multimodal
+                         (Situacao.SEM_TEXTO, 'Sem texto aproveitável mesmo com OCR (página 1).'))
+        self.assertEqual(arquivo.paginas.get().situacao, 'ilegivel')  # não volta ao OCR; fica para o multimodal
+        reconhecer_arquivo(arquivo.pk)
+        self.assertEqual(self.tesseract.call_count, 1)
         resp = self.client.get(reverse('ingestao:lote', args=[arquivo.lote_id]))
         self.assertNotContains(resp, 'para OCR')
 

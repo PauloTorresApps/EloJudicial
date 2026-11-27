@@ -10,7 +10,9 @@ custo. Cada página é classificada para decidir se precisa de OCR:
   texto nativo, por isso "pouco texto + imagem grande" também conta como digitalizada.
 - TEXTO_RUIM: há texto, mas com cara de OCR antigo ou de codificação quebrada.
 
-SEM_TEXTO e TEXTO_RUIM precisam de OCR. Os limiares (Limiares) são provisórios e serão
+SEM_TEXTO e TEXTO_RUIM precisam de OCR. Depois do OCR (classificar_leitura), a página que
+continua sem texto aproveitável fica ILEGIVEL: não volta ao OCR e aguarda a camada multimodal.
+Os limiares (Limiares) são provisórios e serão
 calibrados com as métricas guardadas por página (comando `estatisticas_extracao`, ver docs/0014).
 
 Tipos: PDF (pypdf), HTML (texto visível) e texto puro viram páginas; imagens (fotos, scans)
@@ -55,6 +57,7 @@ TAGS_BLOCO = {
 }
 
 COM_TEXTO, EM_BRANCO, SEM_TEXTO, TEXTO_RUIM = 'com_texto', 'em_branco', 'sem_texto', 'texto_ruim'
+ILEGIVEL = 'ilegivel'  # já lida por OCR e ainda sem texto aproveitável (docs/0019)
 PRECISAM_OCR = (SEM_TEXTO, TEXTO_RUIM)
 
 
@@ -76,6 +79,10 @@ class Extracao:
     @property
     def precisam_ocr(self):
         return [p for p in self.paginas if p.situacao in PRECISAM_OCR]
+
+    @property
+    def ilegiveis(self):
+        return [p for p in self.paginas if p.situacao == ILEGIVEL]
 
     @property
     def tem_texto(self):
@@ -102,6 +109,15 @@ def classificar(numero, texto, maior_imagem=0) -> Pagina:
     qualidade = qualidade_do_texto(texto) if caracteres else None
     situacao = situacao_da_pagina(caracteres, qualidade, maior_imagem)
     return Pagina(numero, texto, situacao, caracteres, qualidade, maior_imagem)
+
+
+def classificar_leitura(numero, texto) -> Pagina:
+    """Classifica o texto lido por OCR (sem imagem: o texto já é o da imagem). A página que continua
+    sem texto aproveitável fica ILEGIVEL, e não volta para o OCR."""
+    pagina = classificar(numero, texto)
+    if pagina.situacao in PRECISAM_OCR:
+        pagina.situacao = ILEGIVEL
+    return pagina
 
 
 def situacao_da_pagina(caracteres, qualidade, maior_imagem, limiares=None) -> str:

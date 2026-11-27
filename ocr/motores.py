@@ -5,18 +5,19 @@ palavras (Tesseract) ou linhas (RapidOCR) ponderada pelo tamanho do texto, de 0 
 """
 
 import functools
-import os
 import time
 from dataclasses import dataclass
 
-THREADS = int(os.environ.get('OCR_THREADS', '1'))  # por processo; o paralelismo vem da concorrência do worker
+# Uma thread por processo (o Tesseract, por OMP_THREAD_LIMIT no Dockerfile): o paralelismo vem
+# da concorrência do worker.
+THREADS = 1
 
 
 @dataclass(frozen=True)
 class Leitura:
     texto: str
     confianca: float  # 0 a 1
-    motor: str  # 'tesseract' ou 'rapid'
+    motor: str  # 'tesseract' ou 'rapid' (o método gravado na página é ocr_<motor>)
     segundos: float
 
 
