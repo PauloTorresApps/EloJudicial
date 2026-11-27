@@ -32,6 +32,7 @@ O fluxo completo da ingestão (download, extração e armazenamento), em diagram
 | [0016](0016-uma-requisicao-por-vez-ao-tribunal.md) | Uma requisição por vez a cada tribunal, com intervalo mínimo | Aceita | 2026-11-25 |
 | [0017](0017-download-do-lote-numa-unica-requisicao.md) | Download do lote numa única requisição ao tribunal | Aceita | 2026-11-25 |
 | [0018](0018-ocr-em-modulo-e-worker-proprios.md) | OCR em módulo e worker próprios | Proposta | 2026-11-26 |
+| [0019](0019-motores-de-ocr-em-dois-niveis.md) | Motores de OCR em dois níveis: Tesseract e RapidOCR | Proposta | 2026-11-26 |
 
 ## Próximos passos
 
@@ -54,8 +55,8 @@ O que vem a seguir, em ordem:
    - teto de custo por lote.
 4. **Passo 3 da cascata, camada de OCR local** (divisão em módulo `ocr`, orquestração no
    `ingestao` e `worker-ocr` proposta na [0018](0018-ocr-em-modulo-e-worker-proprios.md)):
-   - comparar Tesseract e PaddleOCR numa amostra real (qualidade, tempo, tamanho da imagem
-     Docker, suporte ao Python 3.14);
+   - ~~comparar os motores numa amostra real~~: feito, Tesseract e, nas páginas de baixa
+     confiança, RapidOCR, propostos na [0019](0019-motores-de-ocr-em-dois-niveis.md);
    - pré-processamento de fotos e xerox (endireitar, binarizar, tirar ruído);
    - fila e worker próprios (`ocr`), nova situação/método de página (`metodo` = OCR) e
      confiança guardada por página;
@@ -97,12 +98,13 @@ Pontos levantados que ainda precisam de decisão:
 - **Entrega de originais grandes:** o download pela tela lê o arquivo inteiro na memória (até
   100 MB). Se pesar, passar a entregar em streaming.
 - **Cascata de extração, passo 3 (depende das medições da [0014](0014-medicao-e-calibracao-dos-limiares.md)):**
-  - **Motor de OCR:** Tesseract (leve, devolve confiança por palavra) ou PaddleOCR (melhor em
-    fotos, mas pesado e ainda sem confirmação de suporte ao Python 3.14), comparados numa amostra
-    real; pré-processamento de fotos e xerox (endireitar, binarizar, tirar ruído). A fila e o worker
-    próprios (`ocr`) estão propostos na [0018](0018-ocr-em-modulo-e-worker-proprios.md).
+  - **Motor de OCR:** proposta na [0019](0019-motores-de-ocr-em-dois-niveis.md) (Tesseract e,
+    abaixo de 0,85 de confiança, RapidOCR; PaddleOCR descartado). Falta o pré-processamento de
+    fotos e xerox (endireitar, binarizar, tirar ruído) e confirmar os limiares com mais processos.
+    A fila e o worker próprios (`ocr`) estão propostos na [0018](0018-ocr-em-modulo-e-worker-proprios.md).
   - **Página do PDF em imagem:** pypdfium2, pdftoppm ou a imagem embutida, e a resolução.
-  - **Limiar de confiança do OCR** a partir do qual a página sobe para o modelo multimodal.
+  - **Limiar de qualidade** a partir do qual a página sobe para o modelo multimodal, depois das
+    duas leituras ([0019](0019-motores-de-ocr-em-dois-niveis.md)).
   - **Modelo multimodal:** provedor, condições contratuais e LGPD, se documentos com nível de
     sigilo acima de zero podem ser enviados, e teto de custo por lote.
 - **Calibração dos limiares** da [0013](0013-deteccao-de-texto-por-pagina.md), com ingestões reais.
