@@ -22,7 +22,8 @@ from ingestao.extracao import (
 )
 from ingestao.tasks import situacao_do_arquivo
 from ingestao.models import ArquivoIngerido, LoteIngestao, PaginaExtraida
-from judicial import mni
+from judicial import mni, selecao_documentos
+from judicial.mni.comum import Documento, Movimento, Processo
 from judicial.tests.test_processos import NUMERO, RESPOSTA_PROCESSO, Base
 
 Situacao = ArquivoIngerido.Situacao
@@ -139,6 +140,7 @@ class IngestaoTests(ArmazenamentoTemporario, Base):
 
         inicial, certidao = lote.arquivos.all()
         self.assertEqual((inicial.nome, inicial.descricao, inicial.tipo_local), ('INIC1', 'PETIÇÃO INICIAL', '58'))
+        self.assertEqual((inicial.evento, certidao.evento), (1, 3))
         self.assertEqual((inicial.situacao, inicial.mimetype, inicial.mensagem), (Situacao.PRONTO, 'application/pdf', ''))
         self.assertEqual(inicial.texto, TEXTO)
         self.assertEqual(list(inicial.paginas.values_list('numero', 'situacao')), [(1, 'com_texto')])
@@ -164,6 +166,7 @@ class IngestaoTests(ArmazenamentoTemporario, Base):
         self.exibir_processo()
         self.ingerir(['d1a'])
         arquivo = ArquivoIngerido.objects.get()
+        self.assertEqual(arquivo.evento, 1)  # o vinculado fica com o evento do documento principal
         self.assertEqual(arquivo.situacao, Situacao.PARCIAL)
         self.assertEqual(arquivo.mensagem, '1 de 3 páginas precisam de OCR (página 2).')
         self.assertEqual(list(arquivo.paginas.values_list('numero', 'situacao')),
@@ -172,6 +175,15 @@ class IngestaoTests(ArmazenamentoTemporario, Base):
         self.assertContains(resp, '3 páginas (1 para OCR)')
         self.assertContains(resp, 'Texto parcial')
         self.assertContains(resp, '1 com texto parcial')
+
+    def test_lista_guardada_antes_do_numero_do_evento_ainda_cria_o_lote(self):
+        self.exibir_processo()
+        chave = selecao_documentos._chave(self.user, self.amb1, NUMERO)
+        cache.set(chave, {i: item[:3] for i, item in cache.get(chave).items()})
+        self.ingerir(['d1'])
+        arquivo = ArquivoIngerido.objects.get()
+        self.assertEqual((arquivo.nome, arquivo.evento), ('INIC1', None))
+        self.assertContains(self.client.get(reverse('ingestao:lote', args=[arquivo.lote_id])), 'INIC1')
 
     def test_sem_a_lista_exibida_nao_cria_lote(self):
         self.informar_senha()  # a tabela nunca foi exibida (ou o cache expirou)
@@ -445,3 +457,13 @@ class ExtracaoTests(SimpleTestCase):
             situacao(escaneada, escaneada, com_texto, escaneada, com_texto, escaneada, escaneada, escaneada),
             (Situacao.PARCIAL, '6 de 8 páginas precisam de OCR (páginas 1–2, 4, 6–8).'),
         )
+
+
+class EventosDosDocumentosTests(SimpleTestCase):
+    def test_vinculado_herda_o_evento_e_repetido_fica_com_o_da_juntada(self):
+        anexo = Documento(id='a')
+        processo = Processo(numero=NUMERO, movimentos=[
+            Movimento(None, 'Juntada', numero=5, documentos=[Documento(id='x')]),  # x citado de novo no evento 5
+            Movimento(None, 'Petição', numero=2, documentos=[Documento(id='x', vinculados=[anexo])]),
+        ])
+        self.assertEqual(selecao_documentos.eventos_dos_documentos(processo), {'x': 2, 'a': 2})

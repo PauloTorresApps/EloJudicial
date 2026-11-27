@@ -41,7 +41,8 @@
             <table class="border-separate border-spacing-none w-full">
                 <thead class="text-important">
                     <tr class="bg-base-50 dark:bg-base-900">
-                        <th class="border-b border-base-200 font-semibold px-4 py-2 text-left dark:border-base-800">Documento</th>
+                        <th class="border-b border-base-200 font-semibold px-4 py-2 text-right dark:border-base-800">Evento</th>
+                        <th class="border-b border-base-200 font-semibold px-3 py-2 text-left dark:border-base-800">Documento</th>
                         <th class="border-b border-base-200 font-semibold px-3 py-2 text-left dark:border-base-800">Situação</th>
                         <th class="border-b border-base-200 font-semibold px-3 py-2 text-left dark:border-base-800">Detalhes</th>
                         <th class="border-b border-base-200 font-semibold px-4 py-2 text-left dark:border-base-800">Arquivos</th>
@@ -51,7 +52,8 @@
                 <tbody>{% spaceless %}
                     {% for a in arquivos %}
                         <tr>
-                            <td class="align-top border-b border-base-200 px-4 py-2 dark:border-base-800">
+                            <td class="align-top border-b border-base-200 px-4 py-2 text-right tabular-nums dark:border-base-800">{% if a.evento %}{{ a.evento }}{% else %}<span class="text-subtle">—</span>{% endif %}</td>
+                            <td class="align-top border-b border-base-200 px-3 py-2 dark:border-base-800">
                                 <span class="font-medium text-important">{{ a.rotulo }}</span>
                                 {% if a.descricao and a.descricao != a.rotulo %}<div class="text-subtle text-xs">{{ a.descricao }}</div>{% endif %}
                             </td>

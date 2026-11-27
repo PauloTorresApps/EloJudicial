@@ -72,9 +72,10 @@ def ingerir(request, sistema_pk, pk, numero):
             usuario=request.user, ambiente=ambiente, numero_processo=numero, login=credencial.login,
         )
         arquivos = ArquivoIngerido.objects.bulk_create([
-            ArquivoIngerido(lote=lote, id_documento=i, nome=nome[:255], descricao=descricao[:255], tipo_local=tipo[:20])
+            ArquivoIngerido(lote=lote, id_documento=i, nome=nome[:255], descricao=descricao[:255], tipo_local=tipo[:20],
+                            evento=evento[0] if evento else None)
             for i in ids
-            for nome, descricao, tipo in [exibidos[i]]
+            for nome, descricao, tipo, *evento in [exibidos[i]]
         ])
     acesso.guardar(lote, senha_hash)
     enfileirar(lote, [a.pk for a in arquivos])

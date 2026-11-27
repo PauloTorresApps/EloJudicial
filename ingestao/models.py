@@ -66,6 +66,7 @@ class ArquivoIngerido(models.Model):
     nome = models.CharField('nome', max_length=255, blank=True)
     descricao = models.CharField('descrição', max_length=255, blank=True)
     tipo_local = models.CharField('tipo de documento (código local)', max_length=20, blank=True)
+    evento = models.PositiveIntegerField('evento', null=True, blank=True, help_text='Número do evento no processo (1 = mais antigo).')
     situacao = models.CharField('situação', max_length=20, choices=Situacao, default=Situacao.PENDENTE, db_index=True)
     mensagem = models.TextField('mensagem', blank=True)
     arquivo = models.FileField('arquivo original', storage=_armazenamento, upload_to=_caminho, max_length=255, blank=True)

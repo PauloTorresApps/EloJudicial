@@ -36,14 +36,29 @@ def _chave(usuario, ambiente, numero):
     return f'processo:documentos:{usuario.pk}:{ambiente.pk}:{numero}'
 
 
-def lembrar_documentos(usuario, ambiente, numero, documentos):
+def eventos_dos_documentos(processo) -> dict[str, int]:
+    """{id do documento: número do evento}. O vinculado fica com o evento do principal; o
+    documento que aparece em mais de um evento fica com o menor (o da juntada)."""
+    eventos = {}
+    for mov in processo.movimentos:
+        pendentes = list(mov.documentos)
+        for doc in pendentes:  # a lista cresce com os vinculados durante o laço
+            pendentes.extend(doc.vinculados)
+            if doc.id and mov.numero and (doc.id not in eventos or mov.numero < eventos[doc.id]):
+                eventos[doc.id] = mov.numero
+    return eventos
+
+
+def lembrar_documentos(usuario, ambiente, numero, processo):
+    eventos = eventos_dos_documentos(processo)
     cache.set(
         _chave(usuario, ambiente, numero),
-        {d.id: (d.nome, d.descricao, d.tipo_local) for d in documentos if d.id},
+        {d.id: (d.nome, d.descricao, d.tipo_local, eventos.get(d.id)) for d in documentos_da_tabela(processo) if d.id},
         settings.MNI_SENHA_TTL,
     )
 
 
 def documentos_lembrados(usuario, ambiente, numero):
-    """{id: (nome, descrição, tipo local)} da última exibição do processo, ou None se expirou."""
+    """{id: (nome, descrição, tipo local, número do evento)} da última exibição do processo, ou
+    None se expirou. Itens guardados antes do número do evento têm só os três primeiros campos."""
     return cache.get(_chave(usuario, ambiente, numero))
