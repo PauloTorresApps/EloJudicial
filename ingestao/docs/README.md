@@ -31,8 +31,8 @@ O fluxo completo da ingestão (download, extração e armazenamento), em diagram
 | [0015](0015-revisao-de-simplificacao.md) | Revisão de simplificação do módulo | Aceita | 2026-11-24 |
 | [0016](0016-uma-requisicao-por-vez-ao-tribunal.md) | Uma requisição por vez a cada tribunal, com intervalo mínimo | Aceita | 2026-11-25 |
 | [0017](0017-download-do-lote-numa-unica-requisicao.md) | Download do lote numa única requisição ao tribunal | Aceita | 2026-11-25 |
-| [0018](0018-ocr-em-modulo-e-worker-proprios.md) | OCR em módulo e worker próprios | Proposta | 2026-11-26 |
-| [0019](0019-motores-de-ocr-em-dois-niveis.md) | Motores de OCR em dois níveis: Tesseract e RapidOCR | Proposta | 2026-11-26 |
+| [0018](0018-ocr-em-modulo-e-worker-proprios.md) | OCR em módulo e worker próprios | Aceita | 2026-11-26 |
+| [0019](0019-motores-de-ocr-em-dois-niveis.md) | Motores de OCR em dois níveis: Tesseract e RapidOCR | Aceita | 2026-11-26 |
 
 ## Próximos passos
 
@@ -57,10 +57,13 @@ O que vem a seguir, em ordem:
    `ingestao` e `worker-ocr` proposta na [0018](0018-ocr-em-modulo-e-worker-proprios.md)):
    - ~~comparar os motores numa amostra real~~: feito, Tesseract e, nas páginas de baixa
      confiança, RapidOCR, propostos na [0019](0019-motores-de-ocr-em-dois-niveis.md);
+   - ~~fila e worker próprios (`ocr`), método de página e confiança por página~~: feito em
+     2026-11-26 (módulo `ocr`, tarefa `ingestao.reconhecer_arquivo`, serviço `worker-ocr`,
+     `requirements-ocr.txt`); validado nos lotes 1 e 2 (31 páginas: 28 pelo Tesseract, 3 pelo
+     RapidOCR, todos os arquivos "Pronto");
    - pré-processamento de fotos e xerox (endireitar, binarizar, tirar ruído);
-   - fila e worker próprios (`ocr`), nova situação/método de página (`metodo` = OCR) e
-     confiança guardada por página;
-   - definir o limiar de confiança a partir do qual a página sobe para o multimodal.
+   - calibrar o limiar de confiança do Tesseract (0,85, `CONFIANCA_MINIMA_OCR`) e o de qualidade a
+     partir do qual a página sobe para o multimodal, com mais processos escaneados.
 5. **Passo 3 da cascata, camada multimodal:** só para as páginas abaixo do limiar de confiança,
    respeitando as decisões do item 3.
 6. **Pendências menores do módulo** (podem entrar a qualquer momento):

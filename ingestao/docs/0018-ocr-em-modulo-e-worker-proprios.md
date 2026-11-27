@@ -1,6 +1,6 @@
 # 0018. OCR em módulo e worker próprios
 
-- **Status:** Proposta
+- **Status:** Aceita
 - **Data:** 2026-11-26
 - **Origem:** proposta técnica aceita
 - **Complementa:** [0008](0008-extracao-de-texto-sem-ocr.md) e [0013](0013-deteccao-de-texto-por-pagina.md)

@@ -1,6 +1,6 @@
 # 0019. Motores de OCR em dois níveis: Tesseract e RapidOCR
 
-- **Status:** Proposta
+- **Status:** Aceita
 - **Data:** 2026-11-26
 - **Origem:** proposta técnica aceita
 - **Complementa:** [0018](0018-ocr-em-modulo-e-worker-proprios.md) (escolha do motor, que lá ficou em aberto)
