@@ -225,6 +225,7 @@ class Documento:
     tamanho: int | None = None  # bytes
     vinculados: list['Documento'] = field(default_factory=list)
     tipo_local: str = ''  # código do tipo de documento na tabela do tribunal
+    evento: int | None = None  # número do evento (o vinculado herda o do principal; o repetido fica com o da juntada)
 
     @property
     def nome(self):
@@ -347,6 +348,7 @@ def falha_de_autenticacao(resultado) -> bool:
 
 def organizar_processo(processo: Processo, documentos: list[Documento]):
     """Associa os documentos aos eventos e numera os eventos (1 = mais antigo), do mais recente ao mais antigo.
+    Cada documento (e seus vinculados) recebe o número do primeiro evento em que aparece.
 
     Cada documento vai para o seu evento pelo id do movimento indicado no documento ou
     pelos ids de documentos indicados no evento (o MNI admite as duas formas).
@@ -367,6 +369,10 @@ def organizar_processo(processo: Processo, documentos: list[Documento]):
     processo.movimentos.sort(key=lambda mv: ordem_data(mv.data_hora))
     for i, mv in enumerate(processo.movimentos, start=1):
         mv.numero = i
+        pendentes = list(mv.documentos)
+        for d in pendentes:  # a lista cresce com os vinculados durante o laço
+            pendentes.extend(d.vinculados)
+            d.evento = d.evento or i  # em ordem crescente: o primeiro evento é o da juntada
     processo.movimentos.sort(key=lambda mv: ordem_data(mv.data_hora), reverse=True)
 
 

@@ -98,7 +98,7 @@ def processo_dados(request, sistema_pk, pk, numero):
             mni.descrever_competencia(ambiente, resultado.processo)
             documentos = documentos_da_tabela(resultado.processo)
             contexto.update(selecao_inicial(documentos, sistema.codigos_marcados()))
-            lembrar_documentos(request.user, ambiente, numero, resultado.processo)
+            lembrar_documentos(request.user, ambiente, numero, documentos)
         if mni.falha_de_autenticacao(resultado):
             senhas.esquecer(request, sistema)
             contexto['pedir_senha'] = True

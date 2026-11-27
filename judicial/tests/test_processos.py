@@ -1,4 +1,5 @@
 import urllib.error
+from datetime import datetime
 from hashlib import sha256
 from html.parser import HTMLParser
 from pathlib import Path
@@ -6,7 +7,7 @@ from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from judicial import mni, wsdl
@@ -496,3 +497,16 @@ class SelecaoDeDocumentosTests(Base):
             mov.documentos = []
         resp = self.dados_do_processo(resultado)
         self.assertNotContains(resp, 'arquivos-selecionados')
+
+
+class OrganizarProcessoTests(SimpleTestCase):
+    def test_documento_recebe_o_evento_da_juntada_e_o_vinculado_herda(self):
+        anexo = mni.comum.Documento(id='a')
+        peticao = mni.comum.Documento(id='x', id_movimento='m1', vinculados=[anexo])
+        processo = mni.comum.Processo(numero=NUMERO, movimentos=[
+            mni.comum.Movimento(datetime(2021, 5, 1), 'Juntada', id='m2', ids_documentos=['x']),  # x citado de novo
+            mni.comum.Movimento(datetime(2020, 1, 1), 'Petição', id='m1'),
+        ])
+        mni.comum.organizar_processo(processo, [peticao])
+        self.assertEqual([m.numero for m in processo.movimentos], [2, 1])
+        self.assertEqual((peticao.evento, anexo.evento), (1, 1))
