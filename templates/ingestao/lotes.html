@@ -33,6 +33,7 @@
                                 <td class="border-b border-base-200 px-4 py-2 tabular-nums dark:border-base-800">
                                     {{ lote.concluidos }}/{{ lote.total }}
                                     {% if lote.em_andamento %}{% include "unfold/helpers/label.html" with text="em andamento" variant="info" size="md" %}{% endif %}
+                                    {% if lote.reconhecendo %}{% include "unfold/helpers/label.html" with text="reconhecendo texto" variant="info" size="md" %}{% endif %}
                                     {% if lote.aguardando_senha %}{% include "unfold/helpers/label.html" with text="aguardando senha" variant="warning" size="md" %}{% endif %}
                                     {% if lote.com_erro %}{% include "unfold/helpers/label.html" with text="com erro" variant="danger" size="md" %}{% endif %}
                                 </td>

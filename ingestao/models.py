@@ -50,13 +50,15 @@ class ArquivoIngerido(models.Model):
     class Situacao(models.TextChoices):
         PENDENTE = 'pendente', 'Na fila'
         BAIXANDO = 'baixando', 'Baixando'
+        RECONHECENDO = 'reconhecendo', 'Reconhecendo texto'  # baixado; páginas na fila do OCR (docs/0018)
         PRONTO = 'pronto', 'Pronto'
         PARCIAL = 'parcial', 'Texto parcial'  # parte das páginas precisa de OCR
         SEM_TEXTO = 'sem_texto', 'Sem texto'
         AGUARDANDO_SENHA = 'aguardando_senha', 'Aguardando senha'
         ERRO = 'erro', 'Erro'
 
-    EM_ANDAMENTO = (Situacao.PENDENTE, Situacao.BAIXANDO)
+    EM_ANDAMENTO = (Situacao.PENDENTE, Situacao.BAIXANDO)  # o download não terminou: ingerir_lote ainda o pega
+    PROCESSANDO = (*EM_ANDAMENTO, Situacao.RECONHECENDO)  # a tela do lote continua acompanhando
     CONCLUIDOS = (Situacao.PRONTO, Situacao.PARCIAL, Situacao.SEM_TEXTO)
     RETOMAVEIS = (Situacao.AGUARDANDO_SENHA, Situacao.ERRO)
     COM_TEXTO = (Situacao.PRONTO, Situacao.PARCIAL)

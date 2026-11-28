@@ -154,6 +154,8 @@ def extrair_e_salvar(arquivo, dados):
     Usado na ingestão e no reprocessamento dos originais já guardados (comando `reextrair`).
     """
     extracao = extrair_texto(dados, arquivo.mimetype, arquivo.codificacao)
+    # Também no `reextrair`: as páginas são regravadas com o texto nativo e voltam ao OCR.
+    vai_para_ocr = settings.INGESTAO_OCR and bool(extracao.precisam_ocr)
     with transaction.atomic():
         arquivo.paginas.all().delete()
         PaginaExtraida.objects.bulk_create([
@@ -161,10 +163,9 @@ def extrair_e_salvar(arquivo, dados):
                            caracteres=p.caracteres, qualidade=p.qualidade, maior_imagem=p.maior_imagem)
             for p in extracao.paginas
         ], batch_size=500)  # PDFs de milhares de páginas: evita um único INSERT gigante
-        arquivo.situacao, arquivo.mensagem = situacao_do_arquivo(extracao)
+        arquivo.situacao, arquivo.mensagem = situacao_do_arquivo(extracao, vai_para_ocr)
         arquivo.save(update_fields=['situacao', 'mensagem', 'atualizado_em'])
-        if settings.INGESTAO_OCR and extracao.precisam_ocr:
-            # Também no `reextrair`: as páginas foram regravadas com o texto nativo e voltam ao OCR.
+        if vai_para_ocr:
             transaction.on_commit(functools.partial(reconhecer_arquivo.delay, arquivo.pk))
 
 
@@ -174,11 +175,23 @@ def reconhecer_arquivo(arquivo_id):
 
     Idempotente: a página lida sai de PRECISAM_OCR (com texto, em branco ou ilegível) e não é lida de
     novo. Cada página é gravada assim que lida, então uma queda do worker no meio não perde o que já
-    foi feito.
+    foi feito. Ao terminar, e também se o OCR falhar, o arquivo sai de "reconhecendo": a situação é
+    recalculada pelas páginas (as que não foram lidas continuam marcadas para OCR).
     """
     arquivo = ArquivoIngerido.objects.select_related('lote').filter(pk=arquivo_id).exclude(arquivo='').first()
     if arquivo is None:
         return
+    try:
+        _reconhecer(arquivo)
+    finally:
+        # PaginaExtraida tem o que a regra do arquivo usa (número e situação).
+        arquivo.situacao, arquivo.mensagem = situacao_do_arquivo(
+            Extracao(list(arquivo.paginas.only('numero', 'situacao').order_by('numero'))))
+        arquivo.save(update_fields=['situacao', 'mensagem', 'atualizado_em'])
+    logger.info('Lote %s: OCR do arquivo %s concluído (%s)', arquivo.lote_id, arquivo.pk, arquivo.get_situacao_display())
+
+
+def _reconhecer(arquivo):
     pendentes = {p.numero: p for p in arquivo.paginas.filter(situacao__in=PaginaExtraida.PRECISAM_OCR)
                  .only('pk', 'numero', 'situacao')}
     if not pendentes:
@@ -200,12 +213,6 @@ def reconhecer_arquivo(arquivo_id):
             leitura = ler_pagina(imagem)
             _gravar_ocr(pendentes[numero], leitura.texto, f'ocr_{leitura.motor}', leitura.confianca)
 
-    # PaginaExtraida tem o que a regra do arquivo usa (número e situação).
-    arquivo.situacao, arquivo.mensagem = situacao_do_arquivo(
-        Extracao(list(arquivo.paginas.only('numero', 'situacao').order_by('numero'))))
-    arquivo.save(update_fields=['situacao', 'mensagem', 'atualizado_em'])
-    logger.info('Lote %s: OCR do arquivo %s concluído (%s)', arquivo.lote_id, arquivo.pk, arquivo.get_situacao_display())
-
 
 def ler_pagina(imagem):
     """Tesseract; abaixo da confiança mínima, também o RapidOCR, e fica a leitura de melhor qualidade."""
@@ -223,11 +230,13 @@ def _gravar_ocr(pagina, texto, metodo, confianca):
     pagina.save(update_fields=['texto', 'caracteres', 'qualidade', 'situacao', 'metodo', 'confianca'])
 
 
-def situacao_do_arquivo(extracao):
+def situacao_do_arquivo(extracao, vai_para_ocr=False):
     """(situação, mensagem) do arquivo a partir das páginas: as que ainda precisam de OCR e, depois
-    dele, as que ficaram ilegíveis."""
+    dele, as que ficaram ilegíveis. Com `vai_para_ocr`, as que precisam já estão na fila do OCR."""
     if not extracao.paginas:
         return Situacao.SEM_TEXTO, extracao.aviso
+    if vai_para_ocr and (pendentes := [p.numero for p in extracao.precisam_ocr]):
+        return Situacao.RECONHECENDO, f'{len(pendentes)} de {len(extracao.paginas)} páginas na fila do OCR ({_paginas(pendentes)}).'
     if pendentes := [p.numero for p in extracao.precisam_ocr]:
         sem_texto, parcial = 'Sem texto aproveitável: precisa de OCR', 'precisam de OCR'
     elif pendentes := [p.numero for p in extracao.ilegiveis]:

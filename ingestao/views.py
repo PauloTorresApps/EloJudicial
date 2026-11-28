@@ -24,6 +24,8 @@ def _contagem():
     return {
         'total': Count('arquivos'),
         'em_andamento': Count('arquivos', filter=Q(arquivos__situacao__in=ArquivoIngerido.EM_ANDAMENTO)),
+        'reconhecendo': Count('arquivos', filter=Q(arquivos__situacao=Situacao.RECONHECENDO)),
+        'processando': Count('arquivos', filter=Q(arquivos__situacao__in=ArquivoIngerido.PROCESSANDO)),
         'concluidos': Count('arquivos', filter=Q(arquivos__situacao__in=ArquivoIngerido.CONCLUIDOS)),
         'parciais': Count('arquivos', filter=Q(arquivos__situacao=Situacao.PARCIAL)),
         'sem_texto': Count('arquivos', filter=Q(arquivos__situacao=Situacao.SEM_TEXTO)),
@@ -106,10 +108,10 @@ def lote(request, pk):
 
 
 def lote_andamento(request, pk):
-    """Fragmento com o resumo do lote, consultado periodicamente (htmx) enquanto há arquivos na fila."""
+    """Fragmento com o resumo do lote, consultado periodicamente (htmx) enquanto há arquivos na fila ou no OCR."""
     lote = _lote_do_usuario(request, pk)
     resposta = render(request, 'ingestao/_andamento.html', {'lote': lote})
-    if not lote.em_andamento:
+    if not lote.processando:
         resposta['HX-Refresh'] = 'true'  # terminou: recarrega a página para mostrar cada arquivo
     return resposta
 

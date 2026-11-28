@@ -6,6 +6,7 @@ dos arquivos. Exemplos:
     python manage.py reextrair --todos
     python manage.py reextrair --lote 12 15
     python manage.py reextrair --todos --situacao parcial sem_texto
+    python manage.py reextrair --todos --situacao reconhecendo   # arquivo preso no OCR (fila perdida)
 """
 
 from collections import Counter
@@ -23,7 +24,7 @@ class Command(BaseCommand):
         alvo = parser.add_mutually_exclusive_group(required=True)
         alvo.add_argument('--lote', nargs='+', type=int, metavar='ID', help='ids dos lotes')
         alvo.add_argument('--todos', action='store_true', help='todos os arquivos já concluídos')
-        parser.add_argument('--situacao', nargs='+', choices=ArquivoIngerido.CONCLUIDOS,
+        parser.add_argument('--situacao', nargs='+', choices=(*ArquivoIngerido.CONCLUIDOS, ArquivoIngerido.Situacao.RECONHECENDO),
                             help='só arquivos nestas situações (padrão: todas as concluídas)')
 
     def handle(self, *args, **opcoes):

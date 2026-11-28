@@ -20,7 +20,7 @@ from ingestao import acesso, extracao
 from ingestao.extracao import (
     COM_TEXTO, EM_BRANCO, SEM_TEXTO, TEXTO_RUIM, Extracao, classificar, extrair_texto, qualidade_do_texto,
 )
-from ingestao.tasks import ler_pagina, reconhecer_arquivo, situacao_do_arquivo
+from ingestao.tasks import ingerir_lote, ler_pagina, reconhecer_arquivo, situacao_do_arquivo
 from ingestao.models import ArquivoIngerido, LoteIngestao, PaginaExtraida
 from judicial import mni
 from ocr import Leitura
@@ -448,6 +448,11 @@ class ExtracaoTests(SimpleTestCase):
             situacao(escaneada, escaneada, com_texto, escaneada, com_texto, escaneada, escaneada, escaneada),
             (Situacao.PARCIAL, '6 de 8 páginas precisam de OCR (páginas 1–2, 4, 6–8).'),
         )
+        paginas = Extracao([classificar(1, *escaneada), classificar(2, *com_texto)])
+        self.assertEqual(situacao_do_arquivo(paginas, vai_para_ocr=True),
+                         (Situacao.RECONHECENDO, '1 de 2 páginas na fila do OCR (página 1).'))
+        paginas = Extracao([classificar(1, *com_texto)])
+        self.assertEqual(situacao_do_arquivo(paginas, vai_para_ocr=True), (Situacao.PRONTO, ''))
 
 
 BOM = 'Certifico que o réu foi intimado pessoalmente nesta data, conforme o mandado juntado aos autos.'
@@ -530,6 +535,44 @@ class OcrTests(ArmazenamentoTemporario, Base):
             call_command('reextrair', '--todos', stdout=StringIO())
         self.assertEqual(self.tesseract.call_count, 2)
         self.assertEqual(PaginaExtraida.objects.get().metodo, 'ocr_tesseract')
+
+    def test_reconhecendo_enquanto_o_ocr_roda(self):
+        with mock.patch('ingestao.tasks.reconhecer_arquivo.delay') as delay:  # fica na fila do OCR
+            self.ingerir(['d1', 'd2'])
+        escaneado = ArquivoIngerido.objects.get(id_documento='d2')
+        delay.assert_called_once_with(escaneado.pk)
+        self.assertEqual((escaneado.situacao, escaneado.mensagem),
+                         (Situacao.RECONHECENDO, '1 de 1 páginas na fila do OCR (página 1).'))
+        self.assertFalse(escaneado.tem_texto)  # o texto só aparece com o OCR concluído
+
+        lote = escaneado.lote
+        andamento = self.client.get(reverse('ingestao:andamento', args=[lote.pk]))
+        self.assertContains(andamento, 'hx-trigger="every 3s"')  # a tela continua acompanhando
+        self.assertContains(andamento, '1/2 concluídos')
+        self.assertContains(andamento, '1 reconhecendo texto')
+        self.assertNotContains(andamento, 'na fila</span>')  # não está mais na fila de download
+        self.assertNotIn('HX-Refresh', andamento)
+        self.assertContains(self.client.get(reverse('ingestao:lotes')), 'reconhecendo texto')
+
+        with mock.patch('ingestao.tasks.mni.consultar_documentos') as consultar:  # mensagem repetida do download
+            ingerir_lote(lote.pk, [escaneado.pk])
+        consultar.assert_not_called()
+
+        reconhecer_arquivo(escaneado.pk)
+        escaneado.refresh_from_db()
+        self.assertEqual(escaneado.situacao, Situacao.PRONTO)
+        self.assertEqual(self.client.get(reverse('ingestao:andamento', args=[lote.pk]))['HX-Refresh'], 'true')
+
+    def test_falha_no_ocr_tira_o_arquivo_de_reconhecendo(self):
+        self.tesseract.side_effect = [Leitura(BOM, 0.93, 'tesseract', 0.1), RuntimeError('motor quebrou')]
+        with mock.patch('ingestao.tasks.reconhecer_arquivo.delay'):  # duas páginas escaneadas
+            self.ingerir(['d2'], consultar=lambda ids, **_: resposta('d2', pdf((CARIMBO, SCAN), (CARIMBO, SCAN)), 'application/pdf'))
+        arquivo = ArquivoIngerido.objects.get()
+        with self.assertRaises(RuntimeError):
+            reconhecer_arquivo(arquivo.pk)
+        arquivo.refresh_from_db()
+        self.assertEqual((arquivo.situacao, arquivo.mensagem),
+                         (Situacao.PARCIAL, '1 de 2 páginas precisam de OCR (página 2).'))  # a 1ª foi lida e fica
 
     @override_settings(INGESTAO_OCR=False)
     def test_desligado_nao_poe_na_fila(self):

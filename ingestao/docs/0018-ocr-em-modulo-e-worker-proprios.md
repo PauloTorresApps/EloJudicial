@@ -1,6 +1,7 @@
 # 0018. OCR em módulo e worker próprios
 
-- **Status:** Aceita
+- **Status:** Aceita (complementada por [0019](0019-motores-de-ocr-em-dois-niveis.md): o motor; e por
+  [0020](0020-situacao-reconhecendo-durante-o-ocr.md): a situação do arquivo durante o OCR)
 - **Data:** 2026-11-26
 - **Origem:** proposta técnica aceita
 - **Complementa:** [0008](0008-extracao-de-texto-sem-ocr.md) e [0013](0013-deteccao-de-texto-por-pagina.md)
