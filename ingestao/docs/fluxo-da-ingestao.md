@@ -1,10 +1,10 @@
 # Fluxo da ingestão de documentos
 
 Como um documento sai do tribunal e vira texto guardado no EloJudicial: do clique em "Ingerir"
-na tabela de eventos até as páginas extraídas no PostgreSQL. As decisões por trás de cada etapa
-estão nos ADRs deste diretório (ver o [índice](README.md)).
+na tabela de eventos até as páginas extraídas no PostgreSQL, com o OCR das páginas digitalizadas.
+As decisões por trás de cada etapa estão nos ADRs deste diretório (ver o [índice](README.md)).
 
-Situação em 2026-11-25. Os diagramas usam [Mermaid](https://mermaid.js.org/), que o GitHub e o
+Situação em 2026-11-27. Os diagramas usam [Mermaid](https://mermaid.js.org/), que o GitHub e o
 VS Code exibem direto no Markdown.
 
 ## 1. Visão geral
@@ -36,6 +36,17 @@ flowchart LR
     T -->|"original"| VOL[("Volume ingestao<br/>&lt;usuário&gt;/&lt;lote&gt;/&lt;arquivo&gt;.ext")]
     T --> EX
     EX -->|"páginas e situação"| PG
+    EX -->|"há páginas para OCR:<br/>1 mensagem por arquivo, só o id"| RF
+
+    subgraph WO["Worker OCR (fila ocr, worker-ocr)"]
+        R["reconhecer_arquivo"]
+        MO["Módulo ocr<br/>Tesseract → RapidOCR"]
+    end
+
+    RF --> R
+    VOL -->|"original (não chama o tribunal)"| R
+    R --> MO
+    R -->|"texto das páginas e situação"| PG
 
     PG --> TL
     TL -->|"original e texto"| U
@@ -95,7 +106,7 @@ sequenceDiagram
         end
     end
 
-    loop a cada 3 s, enquanto houver arquivos em andamento
+    loop a cada 3 s, enquanto houver arquivos em andamento ou reconhecendo texto
         U->>W: tela do lote / andamento
         W->>PG: contagem por situação
     end
@@ -104,8 +115,8 @@ sequenceDiagram
 ## 3. Extração: do original às páginas classificadas
 
 Feita no worker logo depois do download, arquivo por arquivo
-([0008](0008-extracao-de-texto-sem-ocr.md), [0013](0013-deteccao-de-texto-por-pagina.md)). Não
-há OCR: as páginas sem texto aproveitável ficam marcadas para o OCR futuro.
+([0008](0008-extracao-de-texto-sem-ocr.md), [0013](0013-deteccao-de-texto-por-pagina.md)). As
+páginas sem texto aproveitável (`sem_texto` e `texto_ruim`) seguem para o OCR (seção 4).
 
 ```mermaid
 flowchart TD
@@ -144,23 +155,69 @@ flowchart TD
     S -->|"sem páginas"| AS["Sem texto<br/>(com o aviso)"]
     S -->|"nenhuma página para OCR<br/>e alguma com texto"| AP["Pronto"]
     S -->|"nenhuma para OCR e nenhuma com texto"| AB["Sem texto<br/>(em branco)"]
-    S -->|"há páginas para OCR<br/>e nenhuma com texto"| AO["Sem texto<br/>(precisa de OCR)"]
-    S -->|"há páginas para OCR<br/>e alguma com texto"| APC["Texto parcial"]
+    S -->|"há páginas para OCR<br/>(OCR ligado)"| ARC["Reconhecendo texto<br/>+ mensagem na fila ocr"]
+    S -->|"há páginas para OCR, OCR desligado,<br/>nenhuma com texto"| AO["Sem texto<br/>(precisa de OCR)"]
+    S -->|"há páginas para OCR, OCR desligado,<br/>alguma com texto"| APC["Texto parcial"]
 ```
+
+O OCR fica desligado (`INGESTAO_OCR=0`) nos testes e fora do Docker, onde os motores não estão
+instalados.
 
 Os limiares (20 e 300 caracteres, imagem grande a partir de 500 mil pixels, qualidade 0,6) são
 provisórios: ficam em `Limiares` (`ingestao/extracao.py`) e são calibrados com
 `estatisticas_extracao` e `reextrair` ([0014](0014-medicao-e-calibracao-dos-limiares.md)).
 `reextrair` reprocessa os originais já guardados, sem consultar o tribunal.
 
-## 4. Situações de um arquivo
+## 4. OCR: das páginas digitalizadas ao texto
+
+Feito no `worker-ocr`, uma tarefa por arquivo, a partir do original no volume
+([0018](0018-ocr-em-modulo-e-worker-proprios.md), [0019](0019-motores-de-ocr-em-dois-niveis.md),
+[0020](0020-situacao-reconhecendo-durante-o-ocr.md)). Não fala com o tribunal, então pode rodar em
+paralelo (`OCR_CONCORRENCIA`, padrão 4).
+
+```mermaid
+flowchart TD
+    M["reconhecer_arquivo(arquivo_id)"] --> P{"páginas ainda em<br/>sem_texto ou texto_ruim?"}
+    P -->|"não (mensagem repetida)"| FIM
+    P -->|"sim"| SHA{"o mesmo documento (SHA-256)<br/>já foi lido em outro lote do usuário?"}
+    SHA -->|"sim"| COPIA["Copia o texto, o método e a confiança"]
+    SHA -->|"não"| IMG["Página em imagem<br/>PDF: pypdfium2 a 300 dpi · imagem: corrige o giro do EXIF"]
+    IMG --> TES["Tesseract (por)"]
+    TES --> CF{"confiança ≥ 0,85?"}
+    CF -->|"sim"| GRAVA
+    CF -->|"não"| RAP["RapidOCR (PP-OCRv5)"]
+    RAP --> MELHOR["Fica a leitura de maior<br/>qualidade do texto"]
+    MELHOR --> GRAVA
+    COPIA --> GRAVA
+    GRAVA["Grava a página assim que lida<br/>metodo ocr_tesseract ou ocr_rapid + confiança"] --> CL{"Reclassifica pelo texto lido"}
+    CL -->|"texto aproveitável"| CT["com_texto"]
+    CL -->|"menos de 20 caracteres"| EB["em_branco"]
+    CL -->|"continua ruim"| IL["ilegivel<br/>(não volta ao OCR; aguarda o multimodal)"]
+    CT --> FIM
+    EB --> FIM
+    IL --> FIM
+    FIM["Ao terminar, ou se o OCR falhar (finally):<br/>recalcula a situação do arquivo pelas páginas"]
+    FIM --> AP["Pronto"]
+    FIM --> APC["Texto parcial<br/>(ilegíveis ou não lidas)"]
+    FIM --> AS["Sem texto"]
+```
+
+A página é gravada logo depois de lida: se o worker cair no meio, a mensagem volta para a fila
+(`acks_late`) e a tarefa continua das páginas que faltam. O limiar de 0,85 (`CONFIANCA_MINIMA_OCR`,
+em `ingestao/tasks.py`) e a resolução de 300 dpi são provisórios.
+
+## 5. Situações de um arquivo
 
 ```mermaid
 stateDiagram-v2
     [*] --> pendente: lote criado ("Na fila")
     pendente --> baixando: worker pega o arquivo
     baixando --> pronto: texto em todas as páginas úteis
-    baixando --> parcial: parte das páginas precisa de OCR
+    baixando --> reconhecendo: há páginas para OCR (fila ocr)
+    reconhecendo --> pronto: OCR leu todas as páginas
+    reconhecendo --> parcial: páginas ilegíveis ou OCR falhou
+    reconhecendo --> sem_texto: nenhuma página aproveitável mesmo com OCR
+    baixando --> parcial: parte das páginas precisa de OCR (OCR desligado)
     baixando --> sem_texto: nenhuma página com texto aproveitável
     baixando --> erro: não veio na resposta, grande demais<br/>ou falhas esgotadas
     baixando --> pendente: falha de comunicação (nova tentativa)
@@ -177,7 +234,12 @@ stateDiagram-v2
 situações, o que a torna idempotente: uma mensagem repetida não baixa de novo o que já terminou
 ([0006](0006-tarefas-longas-e-idempotencia.md)).
 
-## 5. Onde cada dado fica guardado
+"Reconhecendo texto" fica fora do grupo em andamento, porque o arquivo já foi baixado, e também
+fora dos concluídos. A tela do lote continua a consultar o andamento enquanto houver arquivos
+nessa situação ([0020](0020-situacao-reconhecendo-durante-o-ocr.md)). Um arquivo preso nela (mensagem
+perdida da fila `ocr`) volta à fila com `reextrair --situacao reconhecendo`.
+
+## 6. Onde cada dado fica guardado
 
 ```mermaid
 erDiagram
@@ -202,23 +264,25 @@ erDiagram
         string nome "da tabela exibida"
         string descricao
         string tipo_local "código do tipo no tribunal"
-        string situacao "pendente, baixando, pronto..."
+        int evento "número do evento no processo"
+        string situacao "pendente, baixando, reconhecendo, pronto..."
         text mensagem "motivo do erro ou do OCR"
         file arquivo "caminho no volume"
         string mimetype
         string codificacao
         bigint tamanho "bytes"
-        string sha256
+        string sha256 "reaproveita o OCR"
     }
     PAGINA_EXTRAIDA {
         int id PK
         int arquivo_id FK
         int numero "único por arquivo"
-        string situacao "com_texto, em_branco, sem_texto, texto_ruim"
-        string metodo "nativo (OCR no futuro)"
+        string situacao "com_texto, em_branco, sem_texto, texto_ruim, ilegivel"
+        string metodo "nativo, ocr_tesseract, ocr_rapid"
         text texto
         int caracteres "sem espaços"
         float qualidade "0 a 1"
+        float confianca "do OCR, 0 a 1 (nula no nativo)"
         bigint maior_imagem "pixels"
     }
     ORIGINAL_NO_VOLUME {
@@ -233,7 +297,8 @@ erDiagram
 | Original de cada arquivo | Volume `ingestao` (`INGESTAO_DIR`), em `<usuário>/<lote>/<arquivo>.<ext>` | Até o arquivo ser apagado: apagar o registro apaga o arquivo do volume |
 | Hash da senha do tribunal para o lote (`mni:ingestao:<lote>`) | Redis de cache, sem persistência | `MNI_SENHA_TTL` (2 h); apagado se o tribunal recusar a senha ou o usuário sair |
 | Trava e hora da última requisição ao tribunal (`mni:trava:<tribunal>`, `mni:ultima:<tribunal>`) | Redis de cache | Trava: até a requisição terminar (no máximo 5 min) |
-| Mensagem da tarefa (`ingerir_lote(lote_id, ids)`) | Redis da fila, com persistência | Até a tarefa terminar; nunca leva senha nem conteúdo |
+| Mensagens das tarefas (`ingerir_lote(lote_id, ids)` na fila `ingestao`, `reconhecer_arquivo(arquivo_id)` na fila `ocr`) | Redis da fila, com persistência | Até a tarefa terminar; nunca levam senha nem conteúdo |
+| Modelos do RapidOCR (PP-OCRv5) | Imagem `ocr` do Docker, baixados no build (`python -m ocr`) | Até a próxima imagem |
 
 O **texto do arquivo inteiro** não é guardado à parte: é montado na hora, juntando o texto das
 páginas em ordem, separadas por uma linha em branco (`ArquivoIngerido.texto`). A tela do lote
