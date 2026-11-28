@@ -7,3 +7,4 @@ staticfiles/
 media/
 docker/nginx/certs/
 dados/
+.vscode/
