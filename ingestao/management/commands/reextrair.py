@@ -45,7 +45,7 @@ class Command(BaseCommand):
                 falhas += 1
                 self.stderr.write(f'Arquivo #{arquivo.pk}: original não encontrado ({exc}).')
                 continue
-            extrair_e_salvar(arquivo, dados)
+            extrair_e_salvar(arquivo, dados, reaproveitar=False)  # o OCR lê de novo, não copia o antigo
             total += 1
             if arquivo.situacao != antes:
                 mudancas[(antes, arquivo.situacao)] += 1

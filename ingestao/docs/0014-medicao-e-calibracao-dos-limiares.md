@@ -1,6 +1,6 @@
 # 0014. Medição e calibração dos limiares
 
-- **Status:** Aceita
+- **Status:** Aceita (complementada por [0022](0022-metricas-das-leituras-do-ocr.md): métricas das leituras do OCR)
 - **Data:** 2026-11-24
 - **Origem:** proposta técnica aceita (passo 2 da cascata de extração)
 

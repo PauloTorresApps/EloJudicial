@@ -501,11 +501,34 @@ class OcrTests(ArmazenamentoTemporario, Base):
         self.ingerir(['d2'])
         pagina = PaginaExtraida.objects.get()
         self.assertEqual((pagina.texto, pagina.metodo, pagina.confianca), (BOM, 'ocr_rapid', 0.99))
+        # As duas leituras ficam guardadas (sem o texto), também a do Tesseract, que perdeu.
+        self.assertEqual([(lida['motor'], lida['confianca']) for lida in pagina.leituras], [('tesseract', 0.5), ('rapid', 0.99)])
+        self.assertLess(pagina.leituras[0]['qualidade'], pagina.leituras[1]['qualidade'])
+
+    def test_estatisticas_do_ocr_para_calibrar_os_limiares(self):
+        self.tesseract.return_value = Leitura(RUIM, 0.6, 'tesseract', 1.5)
+        self.rapid.return_value = Leitura(BOM, 0.99, 'rapid', 4.5)
+        self.ingerir(['d1a', 'd2'])
+        self.tesseract.return_value = Leitura(BOM, 0.93, 'tesseract', 0.5)
+        self.ingerir(['d2'])  # mesmo documento em outro lote: reaproveitado, e conta uma vez só
+        saida = StringIO()
+        call_command('estatisticas_extracao', '--json', stdout=saida)
+        r = json.loads(saida.getvalue())
+        self.assertEqual(r['paginas_repetidas'], 1)
+        self.assertEqual(r['ocr']['paginas_por_metodo_e_situacao'], {'ocr_rapid / com_texto': 2})
+        self.assertEqual(r['ocr']['confianca_do_tesseract']['0.5–0.7'],
+                         {'paginas': 2, 'segunda_leitura': 2, 'rapid_venceu': 2})
+        self.assertEqual(r['ocr']['segundos_por_leitura'], {'rapid': 4.5, 'tesseract': 1.5})
+        self.assertEqual(r['ocr']['paginas_sem_leituras'], 0)
+        saida = StringIO()
+        call_command('estatisticas_extracao', stdout=saida)
+        self.assertIn('Confiança do Tesseract (abaixo de 0.85', saida.getvalue())
+        self.assertNotIn('Certifico', saida.getvalue())  # nenhum texto de documento
 
     def test_a_leitura_de_melhor_qualidade_vence_mesmo_com_confianca_menor(self):
         self.tesseract.return_value = Leitura(BOM, 0.6, 'tesseract', 0.1)
         self.rapid.return_value = Leitura(RUIM, 0.97, 'rapid', 0.1)
-        self.assertEqual(ler_pagina('imagem').motor, 'tesseract')
+        self.assertEqual(ler_pagina('imagem')[0].motor, 'tesseract')
 
     def test_ilegivel_mesmo_com_ocr(self):
         self.tesseract.return_value = Leitura(RUIM, 0.4, 'tesseract', 0.1)
@@ -540,7 +563,7 @@ class OcrTests(ArmazenamentoTemporario, Base):
         with mock.patch('ingestao.tasks.reconhecer_arquivo.delay') as delay:  # fica na fila do OCR
             self.ingerir(['d1', 'd2'])
         escaneado = ArquivoIngerido.objects.get(id_documento='d2')
-        delay.assert_called_once_with(escaneado.pk)
+        delay.assert_called_once_with(escaneado.pk, True)
         self.assertEqual((escaneado.situacao, escaneado.mensagem),
                          (Situacao.RECONHECENDO, '1 de 1 páginas na fila do OCR (página 1).'))
         self.assertFalse(escaneado.tem_texto)  # o texto só aparece com o OCR concluído
@@ -574,7 +597,7 @@ class OcrTests(ArmazenamentoTemporario, Base):
         with mock.patch('ingestao.tasks.reconhecer_arquivo.delay') as delay:
             reconhecer_arquivo(arquivo.pk)
         self.assertEqual(self.tesseract.call_count, 2)
-        delay.assert_called_once_with(arquivo.pk)  # o resto vai para o fim da fila
+        delay.assert_called_once_with(arquivo.pk, True)  # o resto vai para o fim da fila
         arquivo.refresh_from_db()
         self.assertEqual((arquivo.situacao, arquivo.mensagem),
                          (Situacao.RECONHECENDO, '1 de 3 páginas na fila do OCR (página 3).'))
@@ -617,6 +640,16 @@ class OcrTests(ArmazenamentoTemporario, Base):
         arquivo.refresh_from_db()
         self.assertEqual((arquivo.situacao, arquivo.mensagem),
                          (Situacao.PARCIAL, '1 de 2 páginas precisam de OCR (página 2).'))  # a 1ª foi lida e fica
+
+    def test_reextrair_le_de_novo_em_vez_de_copiar_o_ocr_antigo(self):
+        self.ingerir(['d2'])
+        self.ingerir(['d2'])  # mesmo documento: o segundo lote copia do primeiro
+        self.assertEqual(self.tesseract.call_count, 1)
+        self.tesseract.return_value = Leitura(BOM, 0.97, 'tesseract', 0.1)  # ex.: outro motor ou limiar
+        with self.captureOnCommitCallbacks(execute=True):
+            call_command('reextrair', '--todos', stdout=StringIO())
+        self.assertEqual(self.tesseract.call_count, 3)  # os dois lidos de novo
+        self.assertEqual(set(PaginaExtraida.objects.values_list('confianca', flat=True)), {0.97})
 
     @override_settings(INGESTAO_OCR=False)
     def test_desligado_nao_poe_na_fila(self):

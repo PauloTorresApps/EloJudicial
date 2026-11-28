@@ -35,6 +35,7 @@ O fluxo completo da ingestão (download, extração e armazenamento), em diagram
 | [0019](0019-motores-de-ocr-em-dois-niveis.md) | Motores de OCR em dois níveis: Tesseract e RapidOCR | Aceita | 2026-11-26 |
 | [0020](0020-situacao-reconhecendo-durante-o-ocr.md) | Situação "Reconhecendo texto" durante o OCR | Proposta | 2026-11-27 |
 | [0021](0021-ocr-de-arquivos-grandes-em-blocos.md) | OCR de arquivos grandes em blocos de páginas | Proposta | 2026-11-27 |
+| [0022](0022-metricas-das-leituras-do-ocr.md) | Métricas de cada leitura do OCR | Proposta | 2026-11-27 |
 
 ## Próximos passos
 
@@ -68,8 +69,11 @@ O que vem a seguir, em ordem:
    - ~~dividir o OCR de arquivos enormes em tarefas por faixa de páginas~~: feito em 2026-11-27,
      blocos de 50 páginas com continuação no fim da fila ([0021](0021-ocr-de-arquivos-grandes-em-blocos.md));
    - pré-processamento de fotos e xerox (endireitar, binarizar, tirar ruído);
+   - ~~métricas de cada leitura para a calibração~~: feito em 2026-11-27, `PaginaExtraida.leituras`
+     e a seção do OCR do `estatisticas_extracao` ([0022](0022-metricas-das-leituras-do-ocr.md));
    - calibrar o limiar de confiança do Tesseract (0,85, `CONFIANCA_MINIMA_OCR`) e o de qualidade a
-     partir do qual a página sobe para o multimodal, com mais processos escaneados.
+     partir do qual a página sobe para o multimodal, com mais processos escaneados (tabela
+     "Confiança do Tesseract" do `estatisticas_extracao`).
 5. **Passo 3 da cascata, camada multimodal:** só para as páginas abaixo do limiar de confiança,
    respeitando as decisões do item 3.
 6. **Pendências menores do módulo** (podem entrar a qualquer momento):

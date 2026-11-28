@@ -181,7 +181,7 @@ paralelo (`OCR_CONCORRENCIA`, padrão 4). Cada tarefa lê no máximo 50 páginas
 flowchart TD
     M["reconhecer_arquivo(arquivo_id)"] --> P{"páginas ainda em<br/>sem_texto ou texto_ruim?"}
     P -->|"não (mensagem repetida)"| FIM
-    P -->|"sim"| SHA{"o mesmo documento (SHA-256)<br/>já foi lido em outro lote do usuário?"}
+    P -->|"sim"| SHA{"o mesmo documento (SHA-256)<br/>já foi lido em outro lote do usuário?<br/>(não se pergunta no reextrair)"}
     SHA -->|"sim"| COPIA["Copia o texto, o método e a confiança"]
     SHA -->|"não"| BL["Separa as próximas 50 páginas pendentes"]
     BL --> IMG["Página em imagem<br/>PDF: pypdfium2 a 300 dpi · imagem: corrige o giro do EXIF"]
@@ -290,6 +290,7 @@ erDiagram
         int caracteres "sem espaços"
         float qualidade "0 a 1"
         float confianca "do OCR, 0 a 1 (nula no nativo)"
+        json leituras "métricas de cada leitura do OCR, sem o texto"
         bigint maior_imagem "pixels"
     }
     ORIGINAL_NO_VOLUME {

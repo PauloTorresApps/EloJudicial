@@ -140,6 +140,9 @@ class PaginaExtraida(models.Model):
     caracteres = models.PositiveIntegerField('caracteres (sem espaços)', default=0)
     qualidade = models.FloatField('qualidade do texto (0 a 1)', null=True, blank=True)
     confianca = models.FloatField('confiança do OCR (0 a 1)', null=True, blank=True)  # nula no texto nativo
+    # Cada leitura do OCR, também a que perdeu: [{motor, confianca, qualidade, segundos}], sem o texto.
+    # Calibra a confiança mínima do Tesseract e o limiar de qualidade (docs/0019, estatisticas_extracao).
+    leituras = models.JSONField('leituras do OCR', default=list, blank=True)
     maior_imagem = models.PositiveBigIntegerField('maior imagem (pixels)', default=0)
 
     class Meta:

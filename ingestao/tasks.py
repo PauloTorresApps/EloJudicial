@@ -151,10 +151,11 @@ def _guardar(arquivo, doc):
                 arquivo.lote_id, arquivo.pk, mimetype, arquivo.tamanho, arquivo.get_situacao_display())
 
 
-def extrair_e_salvar(arquivo, dados):
+def extrair_e_salvar(arquivo, dados, reaproveitar=True):
     """Extrai o texto de `dados` página a página e grava as páginas e a situação do arquivo.
 
-    Usado na ingestão e no reprocessamento dos originais já guardados (comando `reextrair`).
+    Usado na ingestão e no reprocessamento dos originais já guardados (comando `reextrair`, com
+    `reaproveitar=False`: o OCR lê de novo em vez de copiar o resultado antigo de outro lote).
     """
     extracao = extrair_texto(dados, arquivo.mimetype, arquivo.codificacao)
     # Também no `reextrair`: as páginas são regravadas com o texto nativo e voltam ao OCR.
@@ -169,12 +170,12 @@ def extrair_e_salvar(arquivo, dados):
         arquivo.situacao, arquivo.mensagem = situacao_do_arquivo(extracao, vai_para_ocr)
         arquivo.save(update_fields=['situacao', 'mensagem', 'atualizado_em'])
         if vai_para_ocr:
-            transaction.on_commit(functools.partial(reconhecer_arquivo.delay, arquivo.pk))
+            transaction.on_commit(functools.partial(reconhecer_arquivo.delay, arquivo.pk, reaproveitar))
 
 
 # soft_time_limit: proteção, bem abaixo do visibility_timeout; levanta a exceção na tarefa e o finally roda.
 @shared_task(name='ingestao.reconhecer_arquivo', soft_time_limit=30 * 60, time_limit=35 * 60)
-def reconhecer_arquivo(arquivo_id):
+def reconhecer_arquivo(arquivo_id, reaproveitar=True):
     """OCR das páginas do arquivo que precisam dele (docs/0018 e 0019), até PAGINAS_POR_TAREFA por vez.
 
     Sobrando páginas, a tarefa se põe de novo no fim da fila (docs/0021): nenhuma passa do
@@ -184,26 +185,29 @@ def reconhecer_arquivo(arquivo_id):
     novo. Cada página é gravada assim que lida, então uma queda do worker no meio não perde o que já
     foi feito. Ao terminar, e também se o OCR falhar, o arquivo sai de "reconhecendo": a situação é
     recalculada pelas páginas (as que não foram lidas continuam marcadas para OCR).
+
+    `reaproveitar`: copiar o texto do mesmo documento já lido em outro lote do usuário. Desligado
+    pelo `reextrair`, que existe para ler de novo (outro limiar, outro motor).
     """
     arquivo = ArquivoIngerido.objects.select_related('lote').filter(pk=arquivo_id).exclude(arquivo='').first()
     if arquivo is None:
         return
     continua = False
     try:
-        continua = _reconhecer(arquivo, PAGINAS_POR_TAREFA)
+        continua = _reconhecer(arquivo, PAGINAS_POR_TAREFA, reaproveitar)
     finally:
         # PaginaExtraida tem o que a regra do arquivo usa (número e situação).
         arquivo.situacao, arquivo.mensagem = situacao_do_arquivo(
             Extracao(list(arquivo.paginas.only('numero', 'situacao').order_by('numero'))), vai_para_ocr=continua)
         arquivo.save(update_fields=['situacao', 'mensagem', 'atualizado_em'])
     if continua:
-        reconhecer_arquivo.delay(arquivo.pk)
+        reconhecer_arquivo.delay(arquivo.pk, reaproveitar)
         logger.info('Lote %s: OCR do arquivo %s continua noutra tarefa (%s)', arquivo.lote_id, arquivo.pk, arquivo.mensagem)
         return
     logger.info('Lote %s: OCR do arquivo %s concluído (%s)', arquivo.lote_id, arquivo.pk, arquivo.get_situacao_display())
 
 
-def _reconhecer(arquivo, limite):
+def _reconhecer(arquivo, limite, reaproveitar):
     """Lê até `limite` páginas pendentes do arquivo; devolve se ainda sobram páginas para outra tarefa."""
     pendentes = {p.numero: p for p in arquivo.paginas.filter(situacao__in=PaginaExtraida.PRECISAM_OCR)
                  .only('pk', 'numero', 'situacao')}
@@ -211,38 +215,48 @@ def _reconhecer(arquivo, limite):
         return False
 
     # Mesmo documento já reconhecido em outro lote do usuário (mesmo SHA-256): reaproveita o texto.
-    for copia in PaginaExtraida.objects.filter(
+    copias = PaginaExtraida.objects.none() if not reaproveitar else PaginaExtraida.objects.filter(
         arquivo__sha256=arquivo.sha256, arquivo__lote__usuario_id=arquivo.lote.usuario_id,
         numero__in=pendentes,
     ).exclude(arquivo=arquivo).exclude(metodo=PaginaExtraida.Metodo.NATIVO).order_by('numero', '-pk').only(
-        'numero', 'texto', 'metodo', 'confianca',
-    ):
+        'numero', 'texto', 'metodo', 'confianca', 'leituras',
+    )
+    for copia in copias:
         if copia.numero in pendentes:
-            _gravar_ocr(pendentes.pop(copia.numero), copia.texto, copia.metodo, copia.confianca)
+            _gravar_ocr(pendentes.pop(copia.numero), copia.texto, copia.metodo, copia.confianca, copia.leituras)
 
     agora = sorted(pendentes)[:limite]  # o reaproveitamento acima não conta: não roda o motor
     if agora:
         # Pelo caminho no volume: o pdfium lê sob demanda, sem o PDF inteiro na memória.
         for numero, imagem in ocr.paginas(arquivo.arquivo.path, arquivo.mimetype, agora):
-            leitura = ler_pagina(imagem)
-            _gravar_ocr(pendentes[numero], leitura.texto, f'ocr_{leitura.motor}', leitura.confianca)
+            leitura, leituras = ler_pagina(imagem)
+            _gravar_ocr(pendentes[numero], leitura.texto, f'ocr_{leitura.motor}', leitura.confianca, leituras)
     return len(pendentes) > len(agora)
 
 
 def ler_pagina(imagem):
-    """Tesseract; abaixo da confiança mínima, também o RapidOCR, e fica a leitura de melhor qualidade."""
-    leitura = ocr.tesseract(imagem)
-    if leitura.confianca >= CONFIANCA_MINIMA_OCR:
-        return leitura
-    return max(leitura, ocr.rapid(imagem), key=lambda lida: qualidade_do_texto(lida.texto))
+    """Tesseract; abaixo da confiança mínima, também o RapidOCR, e fica a leitura de melhor qualidade.
+
+    Devolve (leitura escolhida, métricas de todas as leituras, sem o texto).
+    """
+    lidas = [ocr.tesseract(imagem)]
+    if lidas[0].confianca < CONFIANCA_MINIMA_OCR:
+        lidas.append(ocr.rapid(imagem))
+    qualidades = [qualidade_do_texto(lida.texto) for lida in lidas]
+    melhor = max(range(len(lidas)), key=qualidades.__getitem__)  # no empate, fica a primeira (Tesseract)
+    return lidas[melhor], [
+        {'motor': lida.motor, 'confianca': round(lida.confianca, 4), 'qualidade': round(qualidade, 4),
+         'segundos': round(lida.segundos, 2)}
+        for lida, qualidade in zip(lidas, qualidades)
+    ]
 
 
-def _gravar_ocr(pagina, texto, metodo, confianca):
+def _gravar_ocr(pagina, texto, metodo, confianca, leituras):
     """Troca o texto nativo pelo do OCR e reclassifica a página por ele."""
     lida = classificar_leitura(pagina.numero, texto)
     pagina.texto, pagina.caracteres, pagina.qualidade, pagina.situacao = lida.texto, lida.caracteres, lida.qualidade, lida.situacao
-    pagina.metodo, pagina.confianca = metodo, confianca
-    pagina.save(update_fields=['texto', 'caracteres', 'qualidade', 'situacao', 'metodo', 'confianca'])
+    pagina.metodo, pagina.confianca, pagina.leituras = metodo, confianca, leituras
+    pagina.save(update_fields=['texto', 'caracteres', 'qualidade', 'situacao', 'metodo', 'confianca', 'leituras'])
 
 
 def situacao_do_arquivo(extracao, vai_para_ocr=False):

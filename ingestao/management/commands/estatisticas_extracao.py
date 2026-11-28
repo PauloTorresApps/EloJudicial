@@ -1,7 +1,10 @@
 """Estatísticas da extração de texto das ingestões, para calibrar os limiares (docs/0014).
 
 Só contagens e distribuições: nenhum texto, nome de documento, processo ou usuário sai no
-relatório. Exemplos:
+relatório. O mesmo documento (SHA-256) em mais de um lote conta uma vez só nas páginas.
+
+A seção do OCR calibra os limiares da docs/0019: a confiança mínima do Tesseract (abaixo dela, a
+página vai também ao RapidOCR) e a qualidade das leituras. Exemplos:
 
     python manage.py estatisticas_extracao
     python manage.py estatisticas_extracao --sistema "EPROC TJTO" --desde 2026-12-01
@@ -18,6 +21,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from ingestao.extracao import LIMIARES, PRECISAM_OCR, Limiares, situacao_da_pagina
 from ingestao.models import ArquivoIngerido, PaginaExtraida
+from ingestao.tasks import CONFIANCA_MINIMA_OCR
 
 FAIXAS_CARACTERES = [(0, 0), (1, 19), (20, 99), (100, 299), (300, 999), (1000, None)]
 FAIXAS_QUALIDADE = [(0, 0.3), (0.3, 0.5), (0.5, 0.6), (0.6, 0.7), (0.7, 0.8), (0.8, 0.9), (0.9, None)]
@@ -65,17 +69,39 @@ class Command(BaseCommand):
         paginas, caracteres, qualidade, imagem, transicoes = Counter(), Counter(), Counter(), Counter(), Counter()
         por_sistema = defaultdict(lambda: {'paginas': 0, 'precisam_ocr': 0})
         imagens_avulsas = 0
-        por_ocr, confianca = Counter(), Counter()
+        por_ocr, confianca, qualidade_ocr = Counter(), Counter(), Counter()
+        tesseract = Counter()  # (faixa da confiança do Tesseract, coluna) -> páginas
+        tempo, leituras_por_motor = Counter(), Counter()
+        sem_leituras = repetidas = 0
+        vistas = set()
         consulta = PaginaExtraida.objects.filter(arquivo__in=arquivos).values_list(
-            'situacao', 'caracteres', 'qualidade', 'maior_imagem', 'metodo', 'confianca',
-            'arquivo__mimetype', 'arquivo__lote__ambiente__sistema__nome',
+            'situacao', 'caracteres', 'qualidade', 'maior_imagem', 'metodo', 'confianca', 'leituras',
+            'numero', 'arquivo__sha256', 'arquivo__mimetype', 'arquivo__lote__ambiente__sistema__nome',
         )
-        for situacao, chars, qual, maior, metodo, conf, mimetype, sistema in consulta.iterator(chunk_size=5000):
+        for (situacao, chars, qual, maior, metodo, conf, leituras,
+             numero, sha256, mimetype, sistema) in consulta.iterator(chunk_size=5000):
+            if sha256:  # mesmo documento em outro lote (ou reaproveitado pelo OCR): já contado
+                if (sha256, numero) in vistas:
+                    repetidas += 1
+                    continue
+                vistas.add((sha256, numero))
             por_sistema[sistema]['paginas'] += 1
             if metodo != PaginaExtraida.Metodo.NATIVO:
                 # Lida por OCR: texto e métricas são do OCR, não servem para calibrar os limiares do nativo.
                 por_ocr[(metodo, situacao)] += 1
                 confianca[(metodo, _faixa(conf or 0, FAIXAS_CONFIANCA, inteiro=False))] += 1
+                if qual is not None:
+                    qualidade_ocr[(metodo, _faixa(qual, FAIXAS_QUALIDADE, inteiro=False))] += 1
+                if not leituras:
+                    sem_leituras += 1  # lida antes de as leituras serem guardadas
+                    continue
+                faixa = _faixa(leituras[0]['confianca'], FAIXAS_CONFIANCA, inteiro=False)  # a 1ª é a do Tesseract
+                tesseract[(faixa, 'paginas')] += 1
+                tesseract[(faixa, 'segunda_leitura')] += len(leituras) > 1
+                tesseract[(faixa, 'rapid_venceu')] += metodo == PaginaExtraida.Metodo.OCR_RAPID
+                for lida in leituras:
+                    tempo[lida['motor']] += lida['segundos']
+                    leituras_por_motor[lida['motor']] += 1
                 continue
             por_sistema[sistema]['precisam_ocr'] += situacao in PRECISAM_OCR
             if mimetype.startswith('image/'):
@@ -89,6 +115,7 @@ class Command(BaseCommand):
             if simulados:
                 transicoes[(situacao, situacao_da_pagina(chars, qual, maior, simulados))] += 1
 
+        relatorio['paginas_repetidas'] = repetidas
         relatorio['paginas_por_situacao'] = dict(paginas)
         relatorio['imagens_avulsas'] = imagens_avulsas
         relatorio['paginas_por_sistema'] = dict(sorted(por_sistema.items()))
@@ -101,6 +128,13 @@ class Command(BaseCommand):
         relatorio['ocr'] = {
             'paginas_por_metodo_e_situacao': {f'{m} / {s}': n for (m, s), n in sorted(por_ocr.items())},
             'confianca': {f'{m} / {faixa}': n for (m, faixa), n in sorted(confianca.items())},
+            'qualidade': {f'{m} / {faixa}': n for (m, faixa), n in sorted(qualidade_ocr.items())},
+            'confianca_do_tesseract': {
+                rotulo: {coluna: tesseract[(rotulo, coluna)] for coluna in ('paginas', 'segunda_leitura', 'rapid_venceu')}
+                for rotulo in (_rotulo(i, f, False) for i, f in FAIXAS_CONFIANCA)
+            },
+            'segundos_por_leitura': {m: round(tempo[m] / n, 2) for m, n in sorted(leituras_por_motor.items())},
+            'paginas_sem_leituras': sem_leituras,
         }
         if simulados:
             relatorio['simulacao'] = {
@@ -136,7 +170,8 @@ class Command(BaseCommand):
         self._tabela(r['arquivos_por_situacao'])
         escrever('Arquivos por tipo:')
         self._tabela(r['arquivos_por_tipo'])
-        escrever(f'Páginas com o texto nativo: {total_paginas} (imagens avulsas, sempre para OCR: {r["imagens_avulsas"]})')
+        escrever(f'Páginas com o texto nativo: {total_paginas} (imagens avulsas, sempre para OCR: {r["imagens_avulsas"]};'
+                 f' repetidas de outro lote, não contadas: {r["paginas_repetidas"]})')
         self._tabela(r['paginas_por_situacao'], total=total_paginas)
         escrever('Páginas por sistema (total / precisam de OCR):')
         for sistema, n in r['paginas_por_sistema'].items():
@@ -155,6 +190,17 @@ class Command(BaseCommand):
             self._tabela(r['ocr']['paginas_por_metodo_e_situacao'])
             escrever('Confiança do OCR (método / faixa):')
             self._tabela(r['ocr']['confianca'])
+            escrever('Qualidade do texto do OCR (método / faixa):')
+            self._tabela(r['ocr']['qualidade'])
+            escrever(f'Confiança do Tesseract (abaixo de {CONFIANCA_MINIMA_OCR}, a página vai também ao RapidOCR):')
+            escrever(f'  {"faixa":<12} {"páginas":>8} {"2ª leitura":>11} {"rapid venceu":>13}')
+            for faixa, n in r['ocr']['confianca_do_tesseract'].items():
+                escrever(f'  {faixa:<12} {n["paginas"]:>8} {n["segunda_leitura"]:>11} {n["rapid_venceu"]:>13}')
+            if r['ocr']['paginas_sem_leituras']:
+                escrever(f'  (+ {r["ocr"]["paginas_sem_leituras"]} página(s) lidas antes de as leituras serem guardadas)')
+            escrever('Tempo médio por leitura: ' + (', '.join(
+                f'{m} {seg:.2f} s' for m, seg in r['ocr']['segundos_por_leitura'].items()) or '—'))
+            escrever('')
         if 'simulacao' in r:
             s = r['simulacao']
             escrever('Simulação: ' + ', '.join(f'{k}={v}' for k, v in s['limiares'].items()))
