@@ -173,7 +173,9 @@ provisórios: ficam em `Limiares` (`ingestao/extracao.py`) e são calibrados com
 Feito no `worker-ocr`, uma tarefa por arquivo, a partir do original no volume
 ([0018](0018-ocr-em-modulo-e-worker-proprios.md), [0019](0019-motores-de-ocr-em-dois-niveis.md),
 [0020](0020-situacao-reconhecendo-durante-o-ocr.md)). Não fala com o tribunal, então pode rodar em
-paralelo (`OCR_CONCORRENCIA`, padrão 4).
+paralelo (`OCR_CONCORRENCIA`, padrão 4). Cada tarefa lê no máximo 50 páginas
+(`PAGINAS_POR_TAREFA`); o resto segue numa nova tarefa, no fim da fila
+([0021](0021-ocr-de-arquivos-grandes-em-blocos.md)).
 
 ```mermaid
 flowchart TD
@@ -181,7 +183,8 @@ flowchart TD
     P -->|"não (mensagem repetida)"| FIM
     P -->|"sim"| SHA{"o mesmo documento (SHA-256)<br/>já foi lido em outro lote do usuário?"}
     SHA -->|"sim"| COPIA["Copia o texto, o método e a confiança"]
-    SHA -->|"não"| IMG["Página em imagem<br/>PDF: pypdfium2 a 300 dpi · imagem: corrige o giro do EXIF"]
+    SHA -->|"não"| BL["Separa as próximas 50 páginas pendentes"]
+    BL --> IMG["Página em imagem<br/>PDF: pypdfium2 a 300 dpi · imagem: corrige o giro do EXIF"]
     IMG --> TES["Tesseract (por)"]
     TES --> CF{"confiança ≥ 0,85?"}
     CF -->|"sim"| GRAVA
@@ -193,10 +196,14 @@ flowchart TD
     CL -->|"texto aproveitável"| CT["com_texto"]
     CL -->|"menos de 20 caracteres"| EB["em_branco"]
     CL -->|"continua ruim"| IL["ilegivel<br/>(não volta ao OCR; aguarda o multimodal)"]
-    CT --> FIM
-    EB --> FIM
-    IL --> FIM
-    FIM["Ao terminar, ou se o OCR falhar (finally):<br/>recalcula a situação do arquivo pelas páginas"]
+    CT --> MAIS
+    EB --> MAIS
+    IL --> MAIS
+    MAIS{"sobraram páginas<br/>além do bloco?"}
+    MAIS -->|"sim"| CONT["Reconhecendo texto (N de M na fila)<br/>+ nova mensagem no fim da fila ocr"]
+    CONT -.->|"próxima tarefa"| M
+    MAIS -->|"não"| FIM
+    FIM["Ao terminar, ou se o OCR falhar (finally;<br/>também no limite de 30 min por tarefa):<br/>recalcula a situação do arquivo pelas páginas"]
     FIM --> AP["Pronto"]
     FIM --> APC["Texto parcial<br/>(ilegíveis ou não lidas)"]
     FIM --> AS["Sem texto"]

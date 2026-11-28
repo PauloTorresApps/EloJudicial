@@ -34,6 +34,9 @@ TENTATIVAS = 3  # falhas de comunicação com o tribunal: tenta de novo, com esp
 ESPERA_TRIBUNAL = 3 * 60  # segundos pela vez do tribunal (judicial.limitador); depois, nova tentativa
 # Abaixo desta confiança, a leitura do Tesseract ganha uma segunda, com o RapidOCR (docs/0019). Provisório.
 CONFIANCA_MINIMA_OCR = 0.85
+# Páginas lidas por tarefa de OCR; o resto do arquivo segue numa nova tarefa, no fim da fila (docs/0021).
+# 50 páginas levam ~5 min no pior caso (~5,5 s cada, docs/0019), longe do visibility_timeout de 2 h.
+PAGINAS_POR_TAREFA = 50
 
 
 def enfileirar(lote, arquivos_ids):
@@ -169,9 +172,13 @@ def extrair_e_salvar(arquivo, dados):
             transaction.on_commit(functools.partial(reconhecer_arquivo.delay, arquivo.pk))
 
 
-@shared_task(name='ingestao.reconhecer_arquivo')
+# soft_time_limit: proteção, bem abaixo do visibility_timeout; levanta a exceção na tarefa e o finally roda.
+@shared_task(name='ingestao.reconhecer_arquivo', soft_time_limit=30 * 60, time_limit=35 * 60)
 def reconhecer_arquivo(arquivo_id):
-    """OCR das páginas do arquivo que precisam dele (docs/0018 e 0019).
+    """OCR das páginas do arquivo que precisam dele (docs/0018 e 0019), até PAGINAS_POR_TAREFA por vez.
+
+    Sobrando páginas, a tarefa se põe de novo no fim da fila (docs/0021): nenhuma passa do
+    visibility_timeout, e um arquivo enorme não segura um worker enquanto outros esperam.
 
     Idempotente: a página lida sai de PRECISAM_OCR (com texto, em branco ou ilegível) e não é lida de
     novo. Cada página é gravada assim que lida, então uma queda do worker no meio não perde o que já
@@ -181,21 +188,27 @@ def reconhecer_arquivo(arquivo_id):
     arquivo = ArquivoIngerido.objects.select_related('lote').filter(pk=arquivo_id).exclude(arquivo='').first()
     if arquivo is None:
         return
+    continua = False
     try:
-        _reconhecer(arquivo)
+        continua = _reconhecer(arquivo, PAGINAS_POR_TAREFA)
     finally:
         # PaginaExtraida tem o que a regra do arquivo usa (número e situação).
         arquivo.situacao, arquivo.mensagem = situacao_do_arquivo(
-            Extracao(list(arquivo.paginas.only('numero', 'situacao').order_by('numero'))))
+            Extracao(list(arquivo.paginas.only('numero', 'situacao').order_by('numero'))), vai_para_ocr=continua)
         arquivo.save(update_fields=['situacao', 'mensagem', 'atualizado_em'])
+    if continua:
+        reconhecer_arquivo.delay(arquivo.pk)
+        logger.info('Lote %s: OCR do arquivo %s continua noutra tarefa (%s)', arquivo.lote_id, arquivo.pk, arquivo.mensagem)
+        return
     logger.info('Lote %s: OCR do arquivo %s concluído (%s)', arquivo.lote_id, arquivo.pk, arquivo.get_situacao_display())
 
 
-def _reconhecer(arquivo):
+def _reconhecer(arquivo, limite):
+    """Lê até `limite` páginas pendentes do arquivo; devolve se ainda sobram páginas para outra tarefa."""
     pendentes = {p.numero: p for p in arquivo.paginas.filter(situacao__in=PaginaExtraida.PRECISAM_OCR)
                  .only('pk', 'numero', 'situacao')}
     if not pendentes:
-        return
+        return False
 
     # Mesmo documento já reconhecido em outro lote do usuário (mesmo SHA-256): reaproveita o texto.
     for copia in PaginaExtraida.objects.filter(
@@ -207,11 +220,13 @@ def _reconhecer(arquivo):
         if copia.numero in pendentes:
             _gravar_ocr(pendentes.pop(copia.numero), copia.texto, copia.metodo, copia.confianca)
 
-    if pendentes:
+    agora = sorted(pendentes)[:limite]  # o reaproveitamento acima não conta: não roda o motor
+    if agora:
         # Pelo caminho no volume: o pdfium lê sob demanda, sem o PDF inteiro na memória.
-        for numero, imagem in ocr.paginas(arquivo.arquivo.path, arquivo.mimetype, sorted(pendentes)):
+        for numero, imagem in ocr.paginas(arquivo.arquivo.path, arquivo.mimetype, agora):
             leitura = ler_pagina(imagem)
             _gravar_ocr(pendentes[numero], leitura.texto, f'ocr_{leitura.motor}', leitura.confianca)
+    return len(pendentes) > len(agora)
 
 
 def ler_pagina(imagem):

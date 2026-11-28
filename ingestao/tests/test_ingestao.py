@@ -563,6 +563,50 @@ class OcrTests(ArmazenamentoTemporario, Base):
         self.assertEqual(escaneado.situacao, Situacao.PRONTO)
         self.assertEqual(self.client.get(reverse('ingestao:andamento', args=[lote.pk]))['HX-Refresh'], 'true')
 
+    def escaneado_de_tres_paginas(self):
+        with mock.patch('ingestao.tasks.reconhecer_arquivo.delay'):
+            self.ingerir(['d2'], consultar=lambda ids, **_: resposta('d2', pdf(*[(CARIMBO, SCAN)] * 3), 'application/pdf'))
+        return ArquivoIngerido.objects.latest('pk')
+
+    @mock.patch('ingestao.tasks.PAGINAS_POR_TAREFA', 2)
+    def test_arquivo_grande_e_lido_em_varias_tarefas(self):
+        arquivo = self.escaneado_de_tres_paginas()
+        with mock.patch('ingestao.tasks.reconhecer_arquivo.delay') as delay:
+            reconhecer_arquivo(arquivo.pk)
+        self.assertEqual(self.tesseract.call_count, 2)
+        delay.assert_called_once_with(arquivo.pk)  # o resto vai para o fim da fila
+        arquivo.refresh_from_db()
+        self.assertEqual((arquivo.situacao, arquivo.mensagem),
+                         (Situacao.RECONHECENDO, '1 de 3 páginas na fila do OCR (página 3).'))
+
+        with mock.patch('ingestao.tasks.reconhecer_arquivo.delay') as delay:
+            reconhecer_arquivo(arquivo.pk)
+        delay.assert_not_called()
+        self.assertEqual(self.tesseract.call_count, 3)
+        arquivo.refresh_from_db()
+        self.assertEqual(arquivo.situacao, Situacao.PRONTO)
+
+    @mock.patch('ingestao.tasks.PAGINAS_POR_TAREFA', 1)
+    def test_as_tarefas_encadeadas_leem_o_arquivo_inteiro(self):
+        arquivo = self.escaneado_de_tres_paginas()
+        reconhecer_arquivo(arquivo.pk)  # modo eager: as continuações rodam na hora
+        self.assertEqual(self.tesseract.call_count, 3)
+        arquivo.refresh_from_db()
+        self.assertEqual(arquivo.situacao, Situacao.PRONTO)
+        self.assertEqual(set(arquivo.paginas.values_list('metodo', flat=True)), {'ocr_tesseract'})
+
+    @mock.patch('ingestao.tasks.PAGINAS_POR_TAREFA', 1)
+    def test_paginas_reaproveitadas_nao_contam_no_limite(self):
+        primeiro = self.escaneado_de_tres_paginas()
+        reconhecer_arquivo(primeiro.pk)
+        segundo = self.escaneado_de_tres_paginas()  # mesmo SHA-256, outro lote
+        with mock.patch('ingestao.tasks.reconhecer_arquivo.delay') as delay:
+            reconhecer_arquivo(segundo.pk)
+        delay.assert_not_called()  # as 3 páginas vieram do primeiro, numa só tarefa
+        self.assertEqual(self.tesseract.call_count, 3)
+        segundo.refresh_from_db()
+        self.assertEqual(segundo.situacao, Situacao.PRONTO)
+
     def test_falha_no_ocr_tira_o_arquivo_de_reconhecendo(self):
         self.tesseract.side_effect = [Leitura(BOM, 0.93, 'tesseract', 0.1), RuntimeError('motor quebrou')]
         with mock.patch('ingestao.tasks.reconhecer_arquivo.delay'):  # duas páginas escaneadas

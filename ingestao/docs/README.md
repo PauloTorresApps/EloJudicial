@@ -31,9 +31,10 @@ O fluxo completo da ingestão (download, extração e armazenamento), em diagram
 | [0015](0015-revisao-de-simplificacao.md) | Revisão de simplificação do módulo | Aceita | 2026-11-24 |
 | [0016](0016-uma-requisicao-por-vez-ao-tribunal.md) | Uma requisição por vez a cada tribunal, com intervalo mínimo | Aceita | 2026-11-25 |
 | [0017](0017-download-do-lote-numa-unica-requisicao.md) | Download do lote numa única requisição ao tribunal | Aceita | 2026-11-25 |
-| [0018](0018-ocr-em-modulo-e-worker-proprios.md) | OCR em módulo e worker próprios | Aceita (complementada por 0019 e 0020) | 2026-11-26 |
+| [0018](0018-ocr-em-modulo-e-worker-proprios.md) | OCR em módulo e worker próprios | Aceita (complementada por 0019, 0020 e 0021) | 2026-11-26 |
 | [0019](0019-motores-de-ocr-em-dois-niveis.md) | Motores de OCR em dois níveis: Tesseract e RapidOCR | Aceita | 2026-11-26 |
 | [0020](0020-situacao-reconhecendo-durante-o-ocr.md) | Situação "Reconhecendo texto" durante o OCR | Proposta | 2026-11-27 |
+| [0021](0021-ocr-de-arquivos-grandes-em-blocos.md) | OCR de arquivos grandes em blocos de páginas | Proposta | 2026-11-27 |
 
 ## Próximos passos
 
@@ -64,8 +65,8 @@ O que vem a seguir, em ordem:
      RapidOCR, todos os arquivos "Pronto");
    - ~~situação do arquivo durante o OCR~~: feito em 2026-11-27, "Reconhecendo texto"
      ([0020](0020-situacao-reconhecendo-durante-o-ocr.md));
-   - dividir o OCR de arquivos enormes em tarefas por faixa de páginas (um PDF de milhares de
-     páginas pode passar do `visibility_timeout` de 2 h e ser entregue de novo);
+   - ~~dividir o OCR de arquivos enormes em tarefas por faixa de páginas~~: feito em 2026-11-27,
+     blocos de 50 páginas com continuação no fim da fila ([0021](0021-ocr-de-arquivos-grandes-em-blocos.md));
    - pré-processamento de fotos e xerox (endireitar, binarizar, tirar ruído);
    - calibrar o limiar de confiança do Tesseract (0,85, `CONFIANCA_MINIMA_OCR`) e o de qualidade a
      partir do qual a página sobe para o multimodal, com mais processos escaneados.
